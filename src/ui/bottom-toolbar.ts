@@ -126,6 +126,15 @@ class BottomToolbar extends Container {
             icon: 'E189'
         });
 
+        const  setOrigin = new Button({
+            id: 'bottom-toolbar-set-origin',
+            class: ['bottom-toolbar-toggle'],
+            icon: 'E189'
+        });
+
+
+       
+
         undo.dom.appendChild(createSvg(undoSvg));
         redo.dom.appendChild(createSvg(redoSvg));
         picker.dom.appendChild(createSvg(pickerSvg));
@@ -155,7 +164,8 @@ class BottomToolbar extends Container {
         this.append(translate);
         this.append(rotate);
         this.append(scale);
-        // this.append(new Element({ class: 'bottom-toolbar-separator' }));
+        this.append(new Element({ class: 'bottom-toolbar-separator' }));
+        this.append(setOrigin);
         // this.append(measure);
         // this.append(coordSpace);
         // this.append(origin);
@@ -220,6 +230,7 @@ class BottomToolbar extends Container {
         tooltips.register(translate, localize('tooltip.bottom-toolbar.translate'));
         tooltips.register(rotate, localize('tooltip.bottom-toolbar.rotate'));
         tooltips.register(scale, localize('tooltip.bottom-toolbar.scale'));
+        tooltips.register(setOrigin, localize('tooltip.bottom-toolbar.setOrigin'));
         tooltips.register(measure, localize('tooltip.bottom-toolbar.measure'));
         tooltips.register(coordSpace, localize('tooltip.bottom-toolbar.local-space'));
         tooltips.register(origin, localize('tooltip.bottom-toolbar.bound-center'));
