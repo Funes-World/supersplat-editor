@@ -31,7 +31,8 @@ import { ToolManager } from './tools/tool-manager';
 import { registerTransformHandlerEvents } from './transform-handler';
 import { EditorUI } from './ui/editor';
 import { localizeInit } from './ui/localization';
-
+import { loadFromQueryParams } from "./funes-embed-loader";
+import { loadConfig } from "./funes-config";
 declare global {
     interface LaunchParams {
         readonly files: FileSystemFileHandle[];
@@ -268,15 +269,17 @@ const main = async () => {
     scene.start();
 
     // handle load params
-    const loadList = url.searchParams.getAll('load');
-    for (const value of loadList) {
-        const decoded = decodeURIComponent(value);
-        await events.invoke('import', [{
-            filename: decoded.split('/').pop(),
-            url: decoded
-        }]);
-    }
+    // const loadList = url.searchParams.getAll('load');
+    // for (const value of loadList) {
+    //     const decoded = decodeURIComponent(value);
+    //     await events.invoke('import', [{
+    //         filename: decoded.split('/').pop(),
+    //         url: decoded
+    //     }]);
+    // }
 
+    await loadFromQueryParams(url, events);
+    await loadConfig(url, events);
     // handle OS-based file association in PWA mode
     if ('launchQueue' in window) {
         window.launchQueue.setConsumer(async (launchParams: LaunchParams) => {

@@ -1,385 +1,594 @@
-import { Container, Label } from '@playcanvas/pcui';
-import { Mat4, path, Vec3 } from 'playcanvas';
+import { Container, Label } from "@playcanvas/pcui";
+import { Mat4, path, Vec3 } from "playcanvas";
 
-import { DataPanel } from './data-panel';
-import { Events } from '../events';
-import { BottomToolbar } from './bottom-toolbar';
-import { ColorPanel } from './color-panel';
-import { ExportPopup } from './export-popup';
-import { ImageSettingsDialog } from './image-settings-dialog';
-import { localize, localizeInit } from './localization';
-import { Menu } from './menu';
-import { ModeToggle } from './mode-toggle';
-import logo from './playcanvas-logo.png';
-import { Popup, ShowOptions } from './popup';
-import { Progress } from './progress';
-import { PublishSettingsDialog } from './publish-settings-dialog';
-import { RightToolbar } from './right-toolbar';
-import { ScenePanel } from './scene-panel';
-import { ShortcutsPopup } from './shortcuts-popup';
-import { Spinner } from './spinner';
-import { TimelinePanel } from './timeline-panel';
-import { Tooltips } from './tooltips';
-import { VideoSettingsDialog } from './video-settings-dialog';
-import { ViewCube } from './view-cube';
-import { ViewPanel } from './view-panel';
-import { version } from '../../package.json';
+import { DataPanel } from "./data-panel";
+import { Events } from "../events";
+import { BottomToolbar } from "./bottom-toolbar";
+import { ColorPanel } from "./color-panel";
+import { ExportPopup } from "./export-popup";
+import { ImageSettingsDialog } from "./image-settings-dialog";
+import { localize, localizeInit } from "./localization";
+import { Menu } from "./menu";
+import { ModeToggle } from "./mode-toggle";
+import logo from "./playcanvas-logo.png";
+import { Popup, ShowOptions } from "./popup";
+import { Progress } from "./progress";
+import { PublishSettingsDialog } from "./publish-settings-dialog";
+import { RightToolbar } from "./right-toolbar";
+import { ScenePanel } from "./scene-panel";
+import { ShortcutsPopup } from "./shortcuts-popup";
+import { Spinner } from "./spinner";
+import { TimelinePanel } from "./timeline-panel";
+import { Tooltips } from "./tooltips";
+import { VideoSettingsDialog } from "./video-settings-dialog";
+import { ViewCube } from "./view-cube";
+import { ViewPanel } from "./view-panel";
+import { version } from "../../package.json";
 
 // ts compiler and vscode find this type, but eslint does not
 type FilePickerAcceptType = unknown;
 
 const removeExtension = (filename: string) => {
-    return filename.substring(0, filename.length - path.getExtension(filename).length);
+  return filename.substring(
+    0,
+    filename.length - path.getExtension(filename).length
+  );
 };
 
 class EditorUI {
-    appContainer: Container;
-    topContainer: Container;
-    canvasContainer: Container;
-    toolsContainer: Container;
-    canvas: HTMLCanvasElement;
-    popup: Popup;
+  appContainer: Container;
+  topContainer: Container;
+  canvasContainer: Container;
+  toolsContainer: Container;
+  canvas: HTMLCanvasElement;
+  popup: Popup;
 
-    constructor(events: Events) {
-        // favicon
-        const link = document.createElement('link');
-        link.rel = 'icon';
-        link.href = logo;
-        document.head.appendChild(link);
+  constructor(events: Events) {
+    // favicon
+    const link = document.createElement("link");
+    link.rel = "icon";
+    link.href = logo;
+    document.head.appendChild(link);
 
-        // app
-        const appContainer = new Container({
-            id: 'app-container'
+    // app
+    const appContainer = new Container({
+      id: "app-container",
+    });
+
+    // editor
+    const editorContainer = new Container({
+      id: "editor-container",
+    });
+
+    // tooltips container
+    const tooltipsContainer = new Container({
+      id: "tooltips-container",
+    });
+
+    // top container
+    const topContainer = new Container({
+      id: "top-container",
+    });
+
+    // canvas
+    const canvas = document.createElement("canvas");
+    canvas.id = "canvas";
+
+    // app label
+    const appLabel = new Label({
+      id: "app-label",
+      text: `SUPERSPLAT v${version}`,
+    });
+
+    // cursor label
+    const cursorLabel = new Label({
+      id: "cursor-label",
+    });
+
+    let fullprecision = "";
+
+    events.on("camera.focalPointPicked", (details: { position: Vec3 }) => {
+      cursorLabel.text = `${details.position.x.toFixed(
+        2
+      )}, ${details.position.y.toFixed(2)}, ${details.position.z.toFixed(2)}`;
+      fullprecision = `${details.position.x}, ${details.position.y}, ${details.position.z}`;
+    });
+
+    ["pointerdown", "pointerup", "pointermove", "wheel", "dblclick"].forEach(
+      (eventName) => {
+        cursorLabel.dom.addEventListener(eventName, (event: Event) =>
+          event.stopPropagation()
+        );
+      }
+    );
+
+    cursorLabel.dom.addEventListener("pointerdown", () => {
+      navigator.clipboard.writeText(fullprecision);
+
+      const orig = cursorLabel.text;
+      cursorLabel.text = localize("cursor.copied");
+      setTimeout(() => {
+        cursorLabel.text = orig;
+      }, 1000);
+    });
+
+    // canvas container
+    const canvasContainer = new Container({
+      id: "canvas-container",
+    });
+
+    // tools container
+    const toolsContainer = new Container({
+      id: "tools-container",
+    });
+
+    // tooltips
+    const tooltips = new Tooltips();
+    tooltipsContainer.append(tooltips);
+
+    // bottom toolbar
+    const scenePanel = new ScenePanel(events, tooltips);
+    const viewPanel = new ViewPanel(events, tooltips);
+    const colorPanel = new ColorPanel(events, tooltips);
+    const bottomToolbar = new BottomToolbar(events, tooltips);
+    const rightToolbar = new RightToolbar(events, tooltips);
+    const modeToggle = new ModeToggle(events, tooltips);
+    const menu = new Menu(events);
+
+    canvasContainer.dom.appendChild(canvas);
+    canvasContainer.append(appLabel);
+    canvasContainer.append(cursorLabel);
+    canvasContainer.append(toolsContainer);
+    canvasContainer.append(scenePanel);
+    canvasContainer.append(viewPanel);
+    canvasContainer.append(colorPanel);
+    canvasContainer.append(bottomToolbar);
+    canvasContainer.append(rightToolbar);
+    canvasContainer.append(modeToggle);
+    canvasContainer.append(menu);
+
+    const setBottomToolbarVisible = (visible: boolean) => {
+      if (visible === bottomToolbar.hidden) {
+        bottomToolbar.hidden = !visible;
+        bottomToolbar.dom.style.display = visible ? "" : "none";
+        events.fire("bottomToolbar.visible", visible);
+      }
+    };
+
+    events.function("bottomToolbar.visible", () => {
+      return !bottomToolbar.hidden;
+    });
+
+    events.on("bottomToolbar.setVisible", (visible: boolean) => {
+      setBottomToolbarVisible(visible);
+    });
+
+    events.on("bottomToolbar.toggleVisible", () => {
+      setBottomToolbarVisible(bottomToolbar.hidden);
+    });
+
+    const setRightToolbarVisible = (visible: boolean) => {
+      if (visible === rightToolbar.hidden) {
+        rightToolbar.hidden = !visible;
+        rightToolbar.dom.style.display = visible ? "" : "none";
+        events.fire("rightToolbar.visible", visible);
+      }
+    };
+
+    events.function("rightToolbar.visible", () => {
+      return !rightToolbar.hidden;
+    });
+
+    events.on("rightToolbar.setVisible", (visible: boolean) => {
+      setRightToolbarVisible(visible);
+    });
+
+    events.on("rightToolbar.toggleVisible", () => {
+      setRightToolbarVisible(rightToolbar.hidden);
+    });
+
+    const setModeToggleVisible = (visible: boolean) => {
+      if (visible === modeToggle.hidden) {
+        modeToggle.hidden = !visible;
+        modeToggle.dom.style.display = visible ? "" : "none";
+        events.fire("modeToggle.visible", visible);
+      }
+    };
+
+    events.function("modeToggle.visible", () => {
+      return !modeToggle.hidden;
+    });
+
+    events.on("modeToggle.setVisible", (visible: boolean) => {
+      setModeToggleVisible(visible);
+    });
+
+    events.on("modeToggle.toggleVisible", () => {
+      setModeToggleVisible(modeToggle.hidden);
+    });
+
+    const setMenuBarVisible = (visible: boolean) => {
+      if (visible === menu.hidden) {
+        menu.hidden = !visible;
+        menu.dom.style.display = visible ? "" : "none";
+        events.fire("menuBar.visible", visible);
+      }
+    };
+
+    events.function("menuBar.visible", () => {
+      return !menu.hidden;
+    });
+
+    events.on("menuBar.setVisible", (visible: boolean) => {
+      setMenuBarVisible(visible);
+    });
+
+    events.on("menuBar.toggleVisible", () => {
+      setMenuBarVisible(menu.hidden);
+    });
+
+    const setAppLabelVisible = (visible: boolean) => {
+      if (visible === appLabel.hidden) {
+        appLabel.hidden = !visible;
+        appLabel.dom.style.display = visible ? "" : "none";
+        events.fire("appLabel.visible", visible);
+      }
+    };
+
+    events.function("appLabel.visible", () => {
+      return !appLabel.hidden;
+    });
+
+    events.on("appLabel.setVisible", (visible: boolean) => {
+      setAppLabelVisible(visible);
+    });
+
+    events.on("appLabel.toggleVisible", () => {
+      setAppLabelVisible(appLabel.hidden);
+    });
+
+    const setDataPanelVisible = (visible: boolean) => {
+      if (visible === dataPanel.hidden) {
+        dataPanel.hidden = !visible;
+        events.fire("dataPanel.visible", visible);
+      }
+    };
+
+    events.function("dataPanel.visible", () => {
+      return !dataPanel.hidden;
+    });
+
+    events.on("dataPanel.setVisible", (visible: boolean) => {
+      setDataPanelVisible(visible);
+    });
+
+    const setScenePanelVisible = (visible: boolean) => {
+      if (visible === scenePanel.hidden) {
+        scenePanel.hidden = !visible;
+        events.fire("scenePanel.visible", visible);
+      }
+    };
+
+    events.function("scenePanel.visible", () => {
+      return !scenePanel.hidden;
+    });
+
+    events.on("scenePanel.setVisible", (visible: boolean) => {
+      setScenePanelVisible(visible);
+    });
+
+    const setTimelinePanelVisible = (visible: boolean) => {
+      if (visible === timelinePanel.hidden) {
+        timelinePanel.hidden = !visible;
+        events.fire("timelinePanel.visible", visible);
+      }
+    };
+
+    events.function("timelinePanel.visible", () => {
+      return !timelinePanel.hidden;
+    });
+
+    events.on("timelinePanel.setVisible", (visible: boolean) => {
+      setTimelinePanelVisible(visible);
+    });
+
+    events.on("timelinePanel.toggleVisible", () => {
+      setTimelinePanelVisible(timelinePanel.hidden);
+    });
+
+    // view axes container
+    const viewCube = new ViewCube(events);
+    canvasContainer.append(viewCube);
+
+    const setViewCubeVisible = (visible: boolean) => {
+      if (visible === viewCube.hidden) {
+        viewCube.hidden = !visible;
+        viewCube.dom.style.display = visible ? "" : "none";
+        events.fire("viewCube.visible", visible);
+      }
+    };
+
+    events.function("viewCube.visible", () => {
+      return !viewCube.hidden;
+    });
+
+    events.on("viewCube.setVisible", (visible: boolean) => {
+      setViewCubeVisible(visible);
+    });
+
+    events.on("viewCube.toggleVisible", () => {
+      setViewCubeVisible(viewCube.hidden);
+    });
+
+    events.on("prerender", (cameraMatrix: Mat4) => {
+      viewCube.update(cameraMatrix);
+    });
+
+    // main container
+    const mainContainer = new Container({
+      id: "main-container",
+    });
+
+    const timelinePanel = new TimelinePanel(events, tooltips);
+    const dataPanel = new DataPanel(events);
+
+    mainContainer.append(canvasContainer);
+    mainContainer.append(timelinePanel);
+    mainContainer.append(dataPanel);
+
+    editorContainer.append(mainContainer);
+
+    tooltips.register(cursorLabel, localize("cursor.click-to-copy"), "top");
+
+    // message popup
+    const popup = new Popup(tooltips);
+
+    // shortcuts popup
+    const shortcutsPopup = new ShortcutsPopup();
+
+    // export popup
+    const exportPopup = new ExportPopup(events);
+
+    // publish settings
+    const publishSettingsDialog = new PublishSettingsDialog(events);
+
+    // image settings
+    const imageSettingsDialog = new ImageSettingsDialog(events);
+
+    // video settings
+    const videoSettingsDialog = new VideoSettingsDialog(events);
+
+    topContainer.append(popup);
+    topContainer.append(exportPopup);
+    topContainer.append(publishSettingsDialog);
+    topContainer.append(imageSettingsDialog);
+    topContainer.append(videoSettingsDialog);
+
+    appContainer.append(editorContainer);
+    appContainer.append(topContainer);
+    appContainer.append(tooltipsContainer);
+    appContainer.append(shortcutsPopup);
+
+    this.appContainer = appContainer;
+    this.topContainer = topContainer;
+    this.canvasContainer = canvasContainer;
+    this.toolsContainer = toolsContainer;
+    this.canvas = canvas;
+    this.popup = popup;
+
+    document.body.appendChild(appContainer.dom);
+    document.body.setAttribute("tabIndex", "-1");
+
+    events.on("show.shortcuts", () => {
+      shortcutsPopup.hidden = false;
+    });
+
+    events.function(
+      "show.exportPopup",
+      (exportType, splatNames: [string], showFilenameEdit: boolean) => {
+        return exportPopup.show(exportType, splatNames, showFilenameEdit);
+      }
+    );
+
+    events.function("show.publishSettingsDialog", async () => {
+      // show popup if user isn't logged in
+      const userStatus = await events.invoke("publish.userStatus");
+      if (!userStatus) {
+        await events.invoke("showPopup", {
+          type: "error",
+          header: localize("popup.error"),
+          message: localize("popup.publish.please-log-in"),
         });
+        return false;
+      }
 
-        // editor
-        const editorContainer = new Container({
-            id: 'editor-container'
-        });
+      // get user publish settings
+      const publishSettings = await publishSettingsDialog.show(userStatus);
 
-        // tooltips container
-        const tooltipsContainer = new Container({
-            id: 'tooltips-container'
-        });
+      // do publish
+      if (publishSettings) {
+        await events.invoke("scene.publish", publishSettings);
+      }
+    });
 
-        // top container
-        const topContainer = new Container({
-            id: 'top-container'
-        });
+    events.function("show.imageSettingsDialog", async () => {
+      const imageSettings = await imageSettingsDialog.show();
 
-        // canvas
-        const canvas = document.createElement('canvas');
-        canvas.id = 'canvas';
+      if (imageSettings) {
+        await events.invoke("render.image", imageSettings);
+      }
+    });
 
-        // app label
-        const appLabel = new Label({
-            id: 'app-label',
-            text: `SUPERSPLAT v${version}`
-        });
+    events.function("show.videoSettingsDialog", async () => {
+      const videoSettings = await videoSettingsDialog.show();
 
-        // cursor label
-        const cursorLabel = new Label({
-            id: 'cursor-label'
-        });
+      if (videoSettings) {
+        try {
+          const docName = events.invoke("doc.name");
 
-        let fullprecision = '';
+          // Determine file extension and mime type based on format
+          let fileExtension: string;
+          let filePickerTypes: FilePickerAcceptType[];
 
-        events.on('camera.focalPointPicked', (details: { position: Vec3 }) => {
-            cursorLabel.text = `${details.position.x.toFixed(2)}, ${details.position.y.toFixed(2)}, ${details.position.z.toFixed(2)}`;
-            fullprecision = `${details.position.x}, ${details.position.y}, ${details.position.z}`;
-        });
+          // Codec name mapping for display
+          const codecNames: Record<string, string> = {
+            h264: "H.264",
+            h265: "H.265",
+            vp9: "VP9",
+            av1: "AV1",
+          };
+          const codecName =
+            codecNames[videoSettings.codec] ||
+            videoSettings.codec.toUpperCase();
 
-        ['pointerdown', 'pointerup', 'pointermove', 'wheel', 'dblclick'].forEach((eventName) => {
-            cursorLabel.dom.addEventListener(eventName, (event: Event) => event.stopPropagation());
-        });
+          if (videoSettings.format === "webm") {
+            fileExtension = ".webm";
+            filePickerTypes = [
+              {
+                description: `WebM Video (${codecName})`,
+                accept: { "video/webm": [".webm"] },
+              },
+            ];
+          } else if (videoSettings.format === "mov") {
+            fileExtension = ".mov";
+            filePickerTypes = [
+              {
+                description: `MOV Video (${codecName})`,
+                accept: { "video/quicktime": [".mov"] },
+              },
+            ];
+          } else if (videoSettings.format === "mkv") {
+            fileExtension = ".mkv";
+            filePickerTypes = [
+              {
+                description: `MKV Video (${codecName})`,
+                accept: { "video/x-matroska": [".mkv"] },
+              },
+            ];
+          } else {
+            fileExtension = ".mp4";
+            filePickerTypes = [
+              {
+                description: `MP4 Video (${codecName})`,
+                accept: { "video/mp4": [".mp4"] },
+              },
+            ];
+          }
 
-        cursorLabel.dom.addEventListener('pointerdown', () => {
-            navigator.clipboard.writeText(fullprecision);
+          const suggested = `${removeExtension(
+            docName ?? "supersplat"
+          )}${fileExtension}`;
 
-            const orig = cursorLabel.text;
-            cursorLabel.text = localize('cursor.copied');
-            setTimeout(() => {
-                cursorLabel.text = orig;
-            }, 1000);
-        });
+          let writable;
 
-        // canvas container
-        const canvasContainer = new Container({
-            id: 'canvas-container'
-        });
-
-        // tools container
-        const toolsContainer = new Container({
-            id: 'tools-container'
-        });
-
-        // tooltips
-        const tooltips = new Tooltips();
-        tooltipsContainer.append(tooltips);
-
-        // bottom toolbar
-        const scenePanel = new ScenePanel(events, tooltips);
-        const viewPanel = new ViewPanel(events, tooltips);
-        const colorPanel = new ColorPanel(events, tooltips);
-        const bottomToolbar = new BottomToolbar(events, tooltips);
-        const rightToolbar = new RightToolbar(events, tooltips);
-        const modeToggle = new ModeToggle(events, tooltips);
-        const menu = new Menu(events);
-
-        canvasContainer.dom.appendChild(canvas);
-        canvasContainer.append(appLabel);
-        canvasContainer.append(cursorLabel);
-        canvasContainer.append(toolsContainer);
-        canvasContainer.append(scenePanel);
-        canvasContainer.append(viewPanel);
-        canvasContainer.append(colorPanel);
-        canvasContainer.append(bottomToolbar);
-        canvasContainer.append(rightToolbar);
-        canvasContainer.append(modeToggle);
-        canvasContainer.append(menu);
-
-        // view axes container
-        const viewCube = new ViewCube(events);
-        canvasContainer.append(viewCube);
-        events.on('prerender', (cameraMatrix: Mat4) => {
-            viewCube.update(cameraMatrix);
-        });
-
-        // main container
-        const mainContainer = new Container({
-            id: 'main-container'
-        });
-
-        const timelinePanel = new TimelinePanel(events, tooltips);
-        const dataPanel = new DataPanel(events);
-
-        mainContainer.append(canvasContainer);
-        mainContainer.append(timelinePanel);
-        mainContainer.append(dataPanel);
-
-        editorContainer.append(mainContainer);
-
-        tooltips.register(cursorLabel, localize('cursor.click-to-copy'), 'top');
-
-        // message popup
-        const popup = new Popup(tooltips);
-
-        // shortcuts popup
-        const shortcutsPopup = new ShortcutsPopup();
-
-        // export popup
-        const exportPopup = new ExportPopup(events);
-
-        // publish settings
-        const publishSettingsDialog = new PublishSettingsDialog(events);
-
-        // image settings
-        const imageSettingsDialog = new ImageSettingsDialog(events);
-
-        // video settings
-        const videoSettingsDialog = new VideoSettingsDialog(events);
-
-        topContainer.append(popup);
-        topContainer.append(exportPopup);
-        topContainer.append(publishSettingsDialog);
-        topContainer.append(imageSettingsDialog);
-        topContainer.append(videoSettingsDialog);
-
-        appContainer.append(editorContainer);
-        appContainer.append(topContainer);
-        appContainer.append(tooltipsContainer);
-        appContainer.append(shortcutsPopup);
-
-        this.appContainer = appContainer;
-        this.topContainer = topContainer;
-        this.canvasContainer = canvasContainer;
-        this.toolsContainer = toolsContainer;
-        this.canvas = canvas;
-        this.popup = popup;
-
-        document.body.appendChild(appContainer.dom);
-        document.body.setAttribute('tabIndex', '-1');
-
-        events.on('show.shortcuts', () => {
-            shortcutsPopup.hidden = false;
-        });
-
-        events.function('show.exportPopup', (exportType, splatNames: [string], showFilenameEdit: boolean) => {
-            return exportPopup.show(exportType, splatNames, showFilenameEdit);
-        });
-
-        events.function('show.publishSettingsDialog', async () => {
-            // show popup if user isn't logged in
-            const userStatus = await events.invoke('publish.userStatus');
-            if (!userStatus) {
-                await events.invoke('showPopup', {
-                    type: 'error',
-                    header: localize('popup.error'),
-                    message: localize('popup.publish.please-log-in')
-                });
-                return false;
-            }
-
-            // get user publish settings
-            const publishSettings = await publishSettingsDialog.show(userStatus);
-
-            // do publish
-            if (publishSettings) {
-                await events.invoke('scene.publish', publishSettings);
-            }
-        });
-
-        events.function('show.imageSettingsDialog', async () => {
-            const imageSettings = await imageSettingsDialog.show();
-
-            if (imageSettings) {
-                await events.invoke('render.image', imageSettings);
-            }
-        });
-
-        events.function('show.videoSettingsDialog', async () => {
-            const videoSettings = await videoSettingsDialog.show();
-
-            if (videoSettings) {
-
-                try {
-                    const docName = events.invoke('doc.name');
-
-                    // Determine file extension and mime type based on format
-                    let fileExtension: string;
-                    let filePickerTypes: FilePickerAcceptType[];
-
-                    // Codec name mapping for display
-                    const codecNames: Record<string, string> = {
-                        'h264': 'H.264',
-                        'h265': 'H.265',
-                        'vp9': 'VP9',
-                        'av1': 'AV1'
-                    };
-                    const codecName = codecNames[videoSettings.codec] || videoSettings.codec.toUpperCase();
-
-                    if (videoSettings.format === 'webm') {
-                        fileExtension = '.webm';
-                        filePickerTypes = [{
-                            description: `WebM Video (${codecName})`,
-                            accept: { 'video/webm': ['.webm'] }
-                        }];
-                    } else if (videoSettings.format === 'mov') {
-                        fileExtension = '.mov';
-                        filePickerTypes = [{
-                            description: `MOV Video (${codecName})`,
-                            accept: { 'video/quicktime': ['.mov'] }
-                        }];
-                    } else if (videoSettings.format === 'mkv') {
-                        fileExtension = '.mkv';
-                        filePickerTypes = [{
-                            description: `MKV Video (${codecName})`,
-                            accept: { 'video/x-matroska': ['.mkv'] }
-                        }];
-                    } else {
-                        fileExtension = '.mp4';
-                        filePickerTypes = [{
-                            description: `MP4 Video (${codecName})`,
-                            accept: { 'video/mp4': ['.mp4'] }
-                        }];
-                    }
-
-                    const suggested = `${removeExtension(docName ?? 'supersplat')}${fileExtension}`;
-
-                    let writable;
-
-                    if (window.showSaveFilePicker) {
-                        const fileHandle = await window.showSaveFilePicker({
-                            id: 'SuperSplatVideoFileExport',
-                            types: filePickerTypes,
-                            suggestedName: suggested
-                        });
-
-                        writable = await fileHandle.createWritable();
-                    }
-
-                    await events.invoke('render.video', videoSettings, writable);
-                } catch (error) {
-                    if (error instanceof DOMException && error.name === 'AbortError') {
-                        // user cancelled save dialog
-                        return;
-                    }
-
-                    await events.invoke('showPopup', {
-                        type: 'error',
-                        header: 'Failed to render video',
-                        message: `'${error.message ?? error}'`
-                    });
-                }
-            }
-        });
-
-        events.function('show.about', () => {
-            return this.popup.show({
-                type: 'info',
-                header: 'About',
-                message: `SUPERSPLAT v${version}`
+          if (window.showSaveFilePicker) {
+            const fileHandle = await window.showSaveFilePicker({
+              id: "SuperSplatVideoFileExport",
+              types: filePickerTypes,
+              suggestedName: suggested,
             });
-        });
 
-        events.function('showPopup', (options: ShowOptions) => {
-            return this.popup.show(options);
-        });
+            writable = await fileHandle.createWritable();
+          }
 
-        // spinner
+          await events.invoke("render.video", videoSettings, writable);
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            // user cancelled save dialog
+            return;
+          }
 
-        const spinner = new Spinner();
+          await events.invoke("showPopup", {
+            type: "error",
+            header: "Failed to render video",
+            message: `'${error.message ?? error}'`,
+          });
+        }
+      }
+    });
 
-        topContainer.append(spinner);
+    events.function("show.about", () => {
+      return this.popup.show({
+        type: "info",
+        header: "About",
+        message: `SUPERSPLAT v${version}`,
+      });
+    });
 
-        events.on('startSpinner', () => {
-            spinner.hidden = false;
-        });
+    events.function("showPopup", (options: ShowOptions) => {
+      return this.popup.show(options);
+    });
 
-        events.on('stopSpinner', () => {
-            spinner.hidden = true;
-        });
+    // spinner
 
-        // progress
+    const spinner = new Spinner();
 
-        const progress = new Progress();
+    topContainer.append(spinner);
 
-        topContainer.append(progress);
+    events.on("startSpinner", () => {
+      spinner.hidden = false;
+    });
 
-        events.on('progressStart', (header: string) => {
-            progress.hidden = false;
-            progress.setHeader(header);
-        });
+    events.on("stopSpinner", () => {
+      spinner.hidden = true;
+    });
 
-        events.on('progressUpdate', (options: { text: string, progress: number }) => {
-            progress.setText(options.text);
-            progress.setProgress(options.progress);
-        });
+    // progress
 
-        events.on('progressEnd', () => {
-            progress.hidden = true;
-        });
+    const progress = new Progress();
 
-        // initialize canvas to correct size before creating graphics device etc
-        const pixelRatio = window.devicePixelRatio;
-        canvas.width = Math.ceil(canvasContainer.dom.offsetWidth * pixelRatio);
-        canvas.height = Math.ceil(canvasContainer.dom.offsetHeight * pixelRatio);
+    topContainer.append(progress);
 
-        ['contextmenu', 'gesturestart', 'gesturechange', 'gestureend'].forEach((event) => {
-            document.addEventListener(event, (e) => {
-                e.preventDefault();
-            }, true);
-        });
+    events.on("progressStart", (header: string) => {
+      progress.hidden = false;
+      progress.setHeader(header);
+    });
 
-        // whenever the canvas container is clicked, set keyboard focus on the body
-        canvasContainer.dom.addEventListener('pointerdown', (event: PointerEvent) => {
-            // set focus on the body if user is busy pressing on the canvas or a child of the tools
-            // element
-            if (event.target === canvas || toolsContainer.dom.contains(event.target as Node)) {
-                document.body.focus();
-            }
-        }, true);
-    }
+    events.on(
+      "progressUpdate",
+      (options: { text: string; progress: number }) => {
+        progress.setText(options.text);
+        progress.setProgress(options.progress);
+      }
+    );
+
+    events.on("progressEnd", () => {
+      progress.hidden = true;
+    });
+
+    // initialize canvas to correct size before creating graphics device etc
+    const pixelRatio = window.devicePixelRatio;
+    canvas.width = Math.ceil(canvasContainer.dom.offsetWidth * pixelRatio);
+    canvas.height = Math.ceil(canvasContainer.dom.offsetHeight * pixelRatio);
+
+    ["contextmenu", "gesturestart", "gesturechange", "gestureend"].forEach(
+      (event) => {
+        document.addEventListener(
+          event,
+          (e) => {
+            e.preventDefault();
+          },
+          true
+        );
+      }
+    );
+
+    // whenever the canvas container is clicked, set keyboard focus on the body
+    canvasContainer.dom.addEventListener(
+      "pointerdown",
+      (event: PointerEvent) => {
+        // set focus on the body if user is busy pressing on the canvas or a child of the tools
+        // element
+        if (
+          event.target === canvas ||
+          toolsContainer.dom.contains(event.target as Node)
+        ) {
+          document.body.focus();
+        }
+      },
+      true
+    );
+  }
 }
 
 export { EditorUI };

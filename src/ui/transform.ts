@@ -82,8 +82,8 @@ class Transform extends Container {
         scale.append(scaleLabel);
         scale.append(scaleInput);
 
-        this.append(position);
-        this.append(rotation);
+        // this.append(position);
+        // this.append(rotation);
         this.append(scale);
 
         const toArray = (v: Vec3) => {
