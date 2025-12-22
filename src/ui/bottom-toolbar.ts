@@ -126,8 +126,13 @@ class BottomToolbar extends Container {
             icon: 'E189'
         });
 
-        const  setOrigin = new Button({
+        const setOrigin = new Button({
             id: 'bottom-toolbar-set-origin',
+            class: ['bottom-toolbar-toggle'],
+        });
+
+        const resetCamera = new Button({
+            id: 'bottom-toolbar-reset-camera',
             class: ['bottom-toolbar-toggle'],
             icon: 'E189'
         });
@@ -145,6 +150,7 @@ class BottomToolbar extends Container {
         box.dom.appendChild(createSvg(boxSvg));
         lasso.dom.appendChild(createSvg(lassoSvg));
         eyedropper.dom.appendChild(createSvg(eyedropperSvg));
+        setOrigin.dom.appendChild(createSvg(boxSvg));
         // crop.dom.appendChild(createSvg(cropSvg));
 
         this.append(undo);
@@ -166,6 +172,7 @@ class BottomToolbar extends Container {
         this.append(scale);
         this.append(new Element({ class: 'bottom-toolbar-separator' }));
         this.append(setOrigin);
+        this.append(resetCamera);
         // this.append(measure);
         // this.append(coordSpace);
         // this.append(origin);
@@ -187,6 +194,7 @@ class BottomToolbar extends Container {
         coordSpace.dom.addEventListener('click', () => events.fire('tool.toggleCoordSpace'));
         origin.dom.addEventListener('click', () => events.fire('pivot.toggleOrigin'));
         setOrigin.dom.addEventListener('click', () => events.fire('splat.setOrigin'));
+        resetCamera.dom.addEventListener('click', () => events.fire('camera.reset'));
 
         events.on('edit.canUndo', (value: boolean) => {
             undo.enabled = value;
@@ -232,6 +240,7 @@ class BottomToolbar extends Container {
         tooltips.register(rotate, localize('tooltip.bottom-toolbar.rotate'));
         tooltips.register(scale, localize('tooltip.bottom-toolbar.scale'));
         tooltips.register(setOrigin, localize('tooltip.bottom-toolbar.setOrigin'));
+        tooltips.register(resetCamera, localize('tooltip.bottom-toolbar.resetCamera'));
         tooltips.register(measure, localize('tooltip.bottom-toolbar.measure'));
         tooltips.register(coordSpace, localize('tooltip.bottom-toolbar.local-space'));
         tooltips.register(origin, localize('tooltip.bottom-toolbar.bound-center'));

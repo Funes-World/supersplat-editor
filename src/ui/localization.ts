@@ -7,8 +7,11 @@ const localizeInit = () => {
     .use(Backend)
     .use(LanguageDetector)
     .init({
+        // force English UI by default; disable auto detection
+        lng: 'en',
         detection: {
-            order: ['querystring', /* 'cookie', 'localStorage', 'sessionStorage',*/ 'navigator', 'htmlTag']
+            order: [],
+            caches: []
         },
         backend: {
             loadPath: './static/locales/{{lng}}.json'

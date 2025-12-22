@@ -176,6 +176,27 @@ body {
     z-index: 5;
 }
 
+#initial-frame-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+
+    polyline {
+        stroke: #f1a040;
+        stroke-width: 3px;
+        stroke-dasharray: 8 6;
+        fill: none;
+    }
+
+    text {
+        fill: #f1a040;
+        font-size: 14px;
+        font-weight: 600;
+        text-shadow: 0 0 3px rgba(0, 0, 0, 0.45);
+    }
+}
+
 #tools-container {
     display: none;
     position: absolute;

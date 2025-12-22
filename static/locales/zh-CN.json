@@ -216,6 +216,7 @@
     "tooltip.bottom-toolbar.rotate": "旋转 ( 2 )",
     "tooltip.bottom-toolbar.scale": "缩放 ( 3 )",
     "tooltip.bottom-toolbar.setOrigin": "设置原点",
+    "tooltip.bottom-toolbar.resetCamera": "恢复初始视角",
     "tooltip.bottom-toolbar.measure": "测量",
     "measure.length": "长度",
     "tooltip.bottom-toolbar.local-space": "局部坐标系",

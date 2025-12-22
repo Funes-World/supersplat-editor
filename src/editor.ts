@@ -2,6 +2,7 @@ import { Color, Mat4, path, Texture, Vec3, Vec4 } from 'playcanvas';
 
 import { EditHistory } from './edit-history';
 import { SelectAllOp, SelectNoneOp, SelectInvertOp, SelectOp, HideSelectionOp, UnhideAllOp, DeleteSelectionOp, ResetOp, MultiOp, AddSplatOp } from './edit-ops';
+import { ElementType } from './element';
 import { Events } from './events';
 import { Pivot } from './pivot';
 import { Scene } from './scene';
@@ -9,6 +10,7 @@ import { BufferWriter } from './serialize/writer';
 import { Splat } from './splat';
 import { serializePly } from './splat-serialize';
 import { Transform } from './transform';
+import { loadConfig } from './funes-config';
 
 const removeExtension = (filename: string) => {
     return filename.substring(0, filename.length - path.getExtension(filename).length);
@@ -33,6 +35,19 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
     };
 
     const pivotTransform = new Transform();
+    let initialCameraPose: { focal: Vec3; azim: number; elev: number; distance: number } | null = null;
+
+    const maybeCaptureInitialCameraPose = () => {
+        if (initialCameraPose) return;
+        const splats = scene.getElementsByType(ElementType.splat);
+        if (!splats.length) return;
+        initialCameraPose = {
+            focal: scene.camera.focalPoint.clone(),
+            azim: scene.camera.azim,
+            elev: scene.camera.elevation,
+            distance: scene.camera.distance
+        };
+    };
 
     const placePivotForSelection = (splat?: Splat) => {
         const current = splat ?? (events.invoke('selection') as Splat);
@@ -68,6 +83,7 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
         scene.clear();
         editHistory.clear();
         lastExportCursor = 0;
+        initialCameraPose = null;
     });
 
     events.function('scene.dirty', () => {
@@ -112,6 +128,11 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
 
     events.on('tool.coordSpace', () => {
         scene.forceRender = true;
+    });
+
+    // capture initial camera pose after first render with a loaded splat
+    events.on('postrender', () => {
+        maybeCaptureInitialCameraPose();
     });
 
     // grid.visible
@@ -228,13 +249,17 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
     });
 
     events.on('camera.reset', () => {
-        const { initialAzim, initialElev, initialZoom } = scene.config.controls;
-        const x = Math.sin(initialAzim * Math.PI / 180) * Math.cos(initialElev * Math.PI / 180);
-        const y = -Math.sin(initialElev * Math.PI / 180);
-        const z = Math.cos(initialAzim * Math.PI / 180) * Math.cos(initialElev * Math.PI / 180);
-        const zoom = initialZoom;
-
-        scene.camera.setPose(new Vec3(x * zoom, y * zoom, z * zoom), new Vec3(0, 0, 0));
+        if (initialCameraPose) {
+            scene.camera.setFocalPoint(initialCameraPose.focal, 0);
+            scene.camera.setAzimElev(initialCameraPose.azim, initialCameraPose.elev, 0);
+            scene.camera.setDistance(initialCameraPose.distance, 0);
+        } else {
+            const { initialAzim, initialElev, initialZoom } = scene.config.controls;
+            const target = scene.bound.center.clone();
+            scene.camera.setFocalPoint(target, 0);
+            scene.camera.setAzimElev(initialAzim, initialElev, 0);
+            scene.camera.setDistance(initialZoom, 0);
+        }
     });
 
     // handle camera align events
@@ -764,7 +789,17 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
         events.fire('grid.setVisible', docView.showGrid);
         events.fire('camera.setBound', docView.showBound);
         events.fire('camera.setFlySpeed', docView.flySpeed);
+        // re-apply config based on current URL (viewer/editor mode, UI toggles, etc.)
+        loadConfig(new URL(window.location.href), events).catch((err) => {
+            console.warn('Failed to apply config after doc load', err);
+        });
     });
 };
 
-export { registerEditorEvents };
+const applyEditorConfig = async (url: URL, events: Events) => {
+    // apply viewer/editor mode config based on URL params
+    const mode = await loadConfig(url, events);
+    return mode;
+};
+
+export { registerEditorEvents, applyEditorConfig };

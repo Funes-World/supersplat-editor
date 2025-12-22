@@ -3,7 +3,7 @@ import { Color, createGraphicsDevice } from 'playcanvas';
 import { registerCameraPosesEvents } from './camera-poses';
 import { registerDocEvents } from './doc';
 import { EditHistory } from './edit-history';
-import { registerEditorEvents } from './editor';
+import { applyEditorConfig, registerEditorEvents } from './editor';
 import { Events } from './events';
 import { initFileHandler } from './file-handler';
 import { registerIframeApi } from './iframe-api';
@@ -31,9 +31,9 @@ import { ToolManager } from './tools/tool-manager';
 import { registerTransformHandlerEvents } from './transform-handler';
 import { EditorUI } from './ui/editor';
 import { OriginMarker } from './ui/origin-marker';
+import { InitialFrameOverlay } from './ui/initial-frame-overlay';
 import { localizeInit } from './ui/localization';
 import { loadFromQueryParams } from "./funes-embed-loader";
-import { loadConfig } from "./funes-config";
 declare global {
     interface LaunchParams {
         readonly files: FileSystemFileHandle[];
@@ -266,6 +266,9 @@ const main = async () => {
     initShortcuts(events);
     initFileHandler(scene, events, editorUI.appContainer.dom);
 
+    // apply mode config (viewer/editor) before loading models so UI visibility is correct
+    const mode = await applyEditorConfig(url, events);
+
     // load async models
     scene.start();
 
@@ -280,10 +283,10 @@ const main = async () => {
     // }
 
     await loadFromQueryParams(url, events);
-    const mode = await loadConfig(url, events);
 
     if (mode !== 'viewer') {
         new OriginMarker(scene, editorUI.canvasContainer.dom);
+        new InitialFrameOverlay(scene, editorUI.canvasContainer.dom);
     }
     // handle OS-based file association in PWA mode
     if ('launchQueue' in window) {
