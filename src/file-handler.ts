@@ -5,7 +5,7 @@ import { ElementType } from './element';
 import { Events } from './events';
 import { AssetSource } from './loaders/asset-source';
 import { Scene } from './scene';
-import { DownloadWriter, FileStreamWriter } from './serialize/writer';
+import { DownloadWriter, FileStreamWriter, Writer } from './serialize/writer';
 import { Splat } from './splat';
 import { serializePly, serializePlyCompressed, SerializeSettings, serializeSplat, serializeViewer, ViewerExportSettings } from './splat-serialize';
 import { localize } from './ui/localization';
@@ -539,7 +539,7 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
         }
     });
 
-    events.function('scene.write', async (fileType: FileType, options: SceneExportOptions, stream?: FileSystemWritableFileStream) => {
+    events.function('scene.write', async (fileType: FileType, options: SceneExportOptions, stream?: FileSystemWritableFileStream, writerOverride?: Writer) => {
         events.fire('startSpinner');
 
         try {
@@ -550,7 +550,8 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
 
             const { filename, splatIdx, serializeSettings, viewerExportSettings } = options;
 
-            const writer = stream ? new FileStreamWriter(stream) : new DownloadWriter(filename);
+            const writer = writerOverride ?? (stream ? new FileStreamWriter(stream) : new DownloadWriter(filename));
+            let closeResult: any;
 
             try {
                 const splats = splatIdx === 'all' ? getSplats() : [getSplats()[splatIdx]];
@@ -573,9 +574,10 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
                         break;
                 }
             } finally {
-                await writer.close();
+                closeResult = await writer.close();
             }
 
+            return closeResult;
         } catch (error) {
             await events.invoke('showPopup', {
                 type: 'error',
