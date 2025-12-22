@@ -7,6 +7,7 @@ const vertexShader = /* glsl */ `
 
 const fragmentShader = /* glsl */ `
     uniform highp usampler2D transformA;                // splat center x, y, z
+    uniform sampler2D transformB;                       // splat scale (log)
     uniform highp usampler2D splatTransform;            // transform palette index
     uniform sampler2D transformPalette;                 // palette of transforms
     uniform sampler2D splatState;                       // per-splat state
@@ -36,10 +37,23 @@ const fragmentShader = /* glsl */ `
                 continue;
             }
 
-            // read splat center
+            // read splat center and scale (log space)
             vec3 center = uintBitsToFloat(texelFetch(transformA, splatUV, 0).xyz);
+            vec3 scale = texelFetch(transformB, splatUV, 0).xyz;
 
-            // apply optional per-splat transform
+            // ignore invalid data
+            bvec3 centerInf = isinf(center);
+            bvec3 scaleInf = isinf(scale);
+            bvec3 centerNan = isnan(center);
+            bvec3 scaleNan = isnan(scale);
+            if (any(centerInf) || any(scaleInf) || any(centerNan) || any(scaleNan)) {
+                continue;
+            }
+
+            // start with a conservative sphere radius derived from the largest axis
+            float radius = 2.0 * exp(max(scale.x, max(scale.y, scale.z)));
+
+            // apply optional per-splat transform and track scale contribution
             uint transformIndex = texelFetch(splatTransform, splatUV, 0).r;
             if (transformIndex > 0u) {
                 // read transform matrix
@@ -52,10 +66,21 @@ const fragmentShader = /* glsl */ `
                 t[2] = texelFetch(transformPalette, ivec2(u + 2, v), 0);
 
                 center = vec4(center, 1.0) * t;
+
+                // radius needs to be scaled by the maximum row length of the linear part
+                vec3 row0 = vec3(t[0].x, t[1].x, t[2].x);
+                vec3 row1 = vec3(t[0].y, t[1].y, t[2].y);
+                vec3 row2 = vec3(t[0].z, t[1].z, t[2].z);
+                float paletteScale = max(length(row0), max(length(row1), length(row2)));
+                radius *= paletteScale;
             }
 
-            boundMin = min(boundMin, mix(center, boundMin, isinf(center)));
-            boundMax = max(boundMax, mix(center, boundMax, isinf(center)));
+            vec3 extent = vec3(radius);
+            vec3 minPos = center - extent;
+            vec3 maxPos = center + extent;
+
+            boundMin = min(boundMin, minPos);
+            boundMax = max(boundMax, maxPos);
         }
 
         pcFragColor0 = vec4(boundMin, 0.0);

@@ -281,6 +281,87 @@ class Splat extends Element {
         this.entity.gsplat.instance.sorter.setMapping(mapping);
     }
 
+    applyPositionOffset(offset: Vec3) {
+        if (!offset || (offset.x === 0 && offset.y === 0 && offset.z === 0)) {
+            return false;
+        }
+
+        const x = this.splatData.getProp('x') as Float32Array;
+        const y = this.splatData.getProp('y') as Float32Array;
+        const z = this.splatData.getProp('z') as Float32Array;
+        if (!x || !y || !z) {
+            return false;
+        }
+
+        const resource = this.entity.gsplat.instance.resource as GSplatResource;
+        if (!resource?.updateTransformData) {
+            return false;
+        }
+
+        const { numSplats } = this.splatData;
+        for (let i = 0; i < numSplats; ++i) {
+            x[i] += offset.x;
+            y[i] += offset.y;
+            z[i] += offset.z;
+        }
+        resource.updateTransformData(this.splatData);
+
+        if (resource?.centers) {
+            const centers = resource.centers;
+            for (let i = 0; i < centers.length; i += 3) {
+                centers[i] += offset.x;
+                centers[i + 1] += offset.y;
+                centers[i + 2] += offset.z;
+            }
+        }
+
+        const sorter = this.entity.gsplat.instance.sorter;
+        if (sorter?.centers) {
+            const centers = sorter.centers;
+            for (let i = 0; i < centers.length; i += 3) {
+                centers[i] += offset.x;
+                centers[i + 1] += offset.y;
+                centers[i + 2] += offset.z;
+            }
+        }
+
+        if (resource?.aabb?.center) {
+            resource.aabb.center.add(offset);
+        }
+        if (resource?.mesh?.aabb?.center) {
+            resource.mesh.aabb.center.add(offset);
+        }
+
+        this.makeSelectionBoundDirty();
+        this.updateSorting();
+        this.scene.forceRender = true;
+
+        return true;
+    }
+
+    setOrigin() {
+        const position = this.entity.getLocalPosition();
+        if (position.x === 0 && position.y === 0 && position.z === 0) {
+            return;
+        }
+
+        const rotation = this.entity.getLocalRotation();
+        const scale = this.entity.getLocalScale();
+
+        const offset = new Vec3(position.x, position.y, position.z);
+        const invRot = new Quat().copy(rotation).invert();
+        invRot.transformVector(offset, offset);
+
+        if (scale.x !== 0) offset.x /= scale.x;
+        if (scale.y !== 0) offset.y /= scale.y;
+        if (scale.z !== 0) offset.z /= scale.z;
+
+        if (!this.applyPositionOffset(offset)) {
+            return;
+        }
+        this.move(new Vec3(0, 0, 0));
+    }
+
     get worldTransform() {
         return this.entity.getWorldTransform();
     }

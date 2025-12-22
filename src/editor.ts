@@ -3,10 +3,12 @@ import { Color, Mat4, path, Texture, Vec3, Vec4 } from 'playcanvas';
 import { EditHistory } from './edit-history';
 import { SelectAllOp, SelectNoneOp, SelectInvertOp, SelectOp, HideSelectionOp, UnhideAllOp, DeleteSelectionOp, ResetOp, MultiOp, AddSplatOp } from './edit-ops';
 import { Events } from './events';
+import { Pivot } from './pivot';
 import { Scene } from './scene';
 import { BufferWriter } from './serialize/writer';
 import { Splat } from './splat';
 import { serializePly } from './splat-serialize';
+import { Transform } from './transform';
 
 const removeExtension = (filename: string) => {
     return filename.substring(0, filename.length - path.getExtension(filename).length);
@@ -28,6 +30,20 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
     const selectedSplats = () => {
         const selected = events.invoke('selection') as Splat;
         return selected?.visible ? [selected] : [];
+    };
+
+    const pivotTransform = new Transform();
+
+    const placePivotForSelection = (splat?: Splat) => {
+        const current = splat ?? (events.invoke('selection') as Splat);
+        if (!current) {
+            return;
+        }
+
+        const pivot = events.invoke('pivot') as Pivot;
+        const origin = events.invoke('pivot.origin') as 'center' | 'boundCenter';
+        current.getPivot(origin === 'center' ? 'center' : 'boundCenter', current.numSelected > 0, pivotTransform);
+        pivot.place(pivotTransform);
     };
 
     let lastExportCursor = 0;
@@ -234,6 +250,16 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
 
         // switch to ortho mode
         scene.camera.ortho = true;
+    });
+
+    events.on('splat.setOrigin', (splat?: Splat) => {
+        const target = splat ?? (events.invoke('selection') as Splat);
+        if (!target) {
+            return;
+        }
+
+        target.setOrigin();
+        placePivotForSelection(target);
     });
 
     // returns true if the selected splat has selected gaussians

@@ -186,6 +186,7 @@ class BottomToolbar extends Container {
         measure.dom.addEventListener('click', () => events.fire('tool.measure'));
         coordSpace.dom.addEventListener('click', () => events.fire('tool.toggleCoordSpace'));
         origin.dom.addEventListener('click', () => events.fire('pivot.toggleOrigin'));
+        setOrigin.dom.addEventListener('click', () => events.fire('splat.setOrigin'));
 
         events.on('edit.canUndo', (value: boolean) => {
             undo.enabled = value;
