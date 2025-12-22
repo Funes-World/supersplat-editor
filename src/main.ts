@@ -30,6 +30,7 @@ import { SphereSelection } from './tools/sphere-selection';
 import { ToolManager } from './tools/tool-manager';
 import { registerTransformHandlerEvents } from './transform-handler';
 import { EditorUI } from './ui/editor';
+import { OriginMarker } from './ui/origin-marker';
 import { localizeInit } from './ui/localization';
 import { loadFromQueryParams } from "./funes-embed-loader";
 import { loadConfig } from "./funes-config";
@@ -279,7 +280,11 @@ const main = async () => {
     // }
 
     await loadFromQueryParams(url, events);
-    await loadConfig(url, events);
+    const mode = await loadConfig(url, events);
+
+    if (mode !== 'viewer') {
+        new OriginMarker(scene, editorUI.canvasContainer.dom);
+    }
     // handle OS-based file association in PWA mode
     if ('launchQueue' in window) {
         window.launchQueue.setConsumer(async (launchParams: LaunchParams) => {
