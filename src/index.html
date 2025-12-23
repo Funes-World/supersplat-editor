@@ -13,14 +13,24 @@
         <!-- jszip -->
         <script src="jszip.js"></script>
 
-        <!-- Service worker -->
         <script>
-            const sw = navigator.serviceWorker;
-            if (sw) {
-                sw.register('./sw.js')
-                    .then(reg => console.log('service worker registered', reg))
-                    .catch(err => console.log('failed to register service worker', err));
-            }
+            (function () {
+                if (!('serviceWorker' in navigator)) return;
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                    regs.forEach(function (reg) {
+                        reg.unregister();
+                    });
+                });
+                if (window.caches && caches.keys) {
+                    caches.keys().then(function (names) {
+                        names.forEach(function (name) {
+                            if (name && name.indexOf('superSplat-v') === 0) {
+                                caches.delete(name);
+                            }
+                        });
+                    });
+                }
+            })();
         </script>
     </head>
 
