@@ -35,7 +35,7 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
     };
 
     const pivotTransform = new Transform();
-    let initialCameraPose: { focal: Vec3; azim: number; elev: number; distance: number } | null = null;
+    let initialCameraPose: { focal: Vec3; azim: number; elev: number; distance: number; sceneRadius: number } | null = null;
 
     const maybeCaptureInitialCameraPose = () => {
         if (initialCameraPose) return;
@@ -45,7 +45,8 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
             focal: scene.camera.focalPoint.clone(),
             azim: scene.camera.azim,
             elev: scene.camera.elevation,
-            distance: scene.camera.distance
+            distance: scene.camera.distance,
+            sceneRadius: scene.camera.sceneRadius
         };
     };
 
@@ -252,7 +253,10 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
         if (initialCameraPose) {
             scene.camera.setFocalPoint(initialCameraPose.focal, 0);
             scene.camera.setAzimElev(initialCameraPose.azim, initialCameraPose.elev, 0);
-            scene.camera.setDistance(initialCameraPose.distance, 0);
+            const currentRadius = scene.camera.sceneRadius;
+            const initialRadius = initialCameraPose.sceneRadius || currentRadius;
+            const distance = initialCameraPose.distance * (initialRadius / currentRadius);
+            scene.camera.setDistance(distance, 0);
         } else {
             const { initialAzim, initialElev, initialZoom } = scene.config.controls;
             const target = scene.bound.center.clone();
