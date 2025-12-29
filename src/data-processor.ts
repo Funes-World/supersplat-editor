@@ -381,9 +381,7 @@ class DataProcessor {
         const { scope } = device;
 
         const numSplats = splat.splatData.numSplats;
-        const resource = splat.entity.gsplat.instance.resource as GSplatResource;
-        const transformA = resource.transformATexture;
-        const transformB = resource.transformBTexture;
+        const transformA = (splat.entity.gsplat.instance.resource as GSplatResource).transformATexture;
         const splatTransform = splat.transformTexture;
         const transformPalette = splat.transformPalette.texture;
         const splatState = splat.stateTexture;
@@ -397,7 +395,6 @@ class DataProcessor {
 
         resolve(scope, {
             transformA,
-            transformB,
             splatTransform,
             transformPalette,
             splatState,
