@@ -1,0 +1,25 @@
+// The upstream editor owns its components. FUNES owns only the embedding skin.
+.funes-editor, .funes-viewer {
+    #menu, #app-label, #right-toolbar, #timeline-panel, #data-panel, #status-bar {
+        display: none !important;
+    }
+    #canvas-container { position: relative; }
+    #scene-panel { top: 24px; max-height: calc(100vh - 48px); }
+    #scene-panel > .panel-header:first-child, .splat-list-container,
+    #transform > .transform-row:nth-child(-n+2), #color-panel { display: none !important; }
+    #bottom-toolbar-polygon, #bottom-toolbar-eyedropper, #bottom-toolbar-sphere-brush,
+    #bottom-toolbar-sphere, #bottom-toolbar-box, #bottom-toolbar-measure, #bottom-toolbar-orient, #bottom-toolbar-coord-space,
+    #bottom-toolbar-origin { display: none !important; }
+}
+.funes-viewer {
+    #scene-panel, #bottom-toolbar, #view-cube-container, .select-toolbar,
+    #settings-panel, #appearance-panel, #overlays-panel { display: none !important; }
+}
+.funes-editor #origin-marker {
+    position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #ff3333; transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
+}
+.funes-editor #initial-frame-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 9; overflow: visible;
+}
+.funes-editor .funes-toolbar-button { width: auto; padding: 0 8px; }

@@ -8,7 +8,7 @@ import { EditHistory } from './edit-history';
 import { registerEditorEvents } from './editor';
 import { Events } from './events';
 import { initFileHandler } from './file-handler';
-import { registerIframeApi } from './iframe-api';
+import { createFunesIntegration, reportStartupError } from './funes/bootstrap';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
 import { registerRenderEvents } from './render';
@@ -34,7 +34,7 @@ import { SphereBrushSelection } from './tools/sphere-brush-selection';
 import { SphereSelection } from './tools/sphere-selection';
 import { ToolManager } from './tools/tool-manager';
 import { registerTrackManagerEvents } from './track-manager';
-import { registerTransformHandlerEvents } from './transform-handler';
+import { registerTransformHandlerEvents } from './funes/adapters/transform-handler';
 import { BoundDimensionsOverlay } from './ui/bound-dimensions-overlay';
 import { EditorUI } from './ui/editor';
 import { i18n } from './ui/localization';
@@ -79,12 +79,13 @@ const getURLArgs = () => {
     return config;
 };
 
-const main = async () => {
+const start = async () => {
     // root events object
     const events = new Events();
 
     // url
     const url = new URL(window.location.href);
+    const funes = createFunesIntegration(events, url);
 
     // shared command queue for all async splat work (GPU readbacks + history mutations).
     // every consumer that needs ordering relative to other commands enqueues here.
@@ -99,6 +100,7 @@ const main = async () => {
 
     // init localization
     await i18n.init();
+    await funes.localize();
 
     // Configure WebP WASM for SOG format (used for both reading and writing)
     WebPCodec.wasmUrl = new URL('static/lib/webp/webp.wasm', document.baseURI).toString();
@@ -113,12 +115,11 @@ const main = async () => {
     registerTimelineEvents(events);
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
-    registerTransformHandlerEvents(events);
-    registerPublishEvents(events);
-    registerIframeApi(events);
+    if (!funes.readOnly) registerTransformHandlerEvents(events);
+    if (!funes.readOnly) registerPublishEvents(events);
 
     // initialize shortcuts
-    const shortcutManager = new ShortcutManager(events);
+    const shortcutManager = funes.readOnly ? { get: (): undefined => undefined, formatShortcut: () => '' } : new ShortcutManager(events);
     events.function('shortcutManager', () => shortcutManager);
 
     // editor ui
@@ -137,7 +138,8 @@ const main = async () => {
     const urlArgs = getURLArgs();
 
     const overrides = [
-        urlArgs
+        urlArgs,
+        funes.defaults
     ];
 
     // resolve scene config
@@ -243,64 +245,55 @@ const main = async () => {
 
     // tool manager
     const toolManager = new ToolManager(events);
-    toolManager.register('rectSelection', new RectSelection(events, editorUI.toolsContainer.dom));
-    toolManager.register('brushSelection', new BrushSelection(events, editorUI.toolsContainer.dom, mask));
-    toolManager.register('sphereBrushSelection', new SphereBrushSelection(events, editorUI.toolsContainer.dom, mask));
-    toolManager.register('floodSelection', new FloodSelection(events, editorUI.toolsContainer.dom, mask, editorUI.canvasContainer));
-    toolManager.register('polygonSelection', new PolygonSelection(events, editorUI.toolsContainer.dom, mask));
-    toolManager.register('lassoSelection', new LassoSelection(events, editorUI.toolsContainer.dom, mask));
-    toolManager.register('sphereSelection', new SphereSelection(events, scene, editorUI.canvasContainer, editorUI.tooltips));
-    toolManager.register('boxSelection', new BoxSelection(events, scene, editorUI.canvasContainer, editorUI.tooltips));
-    toolManager.register('eyedropperSelection', new EyedropperSelection(events, editorUI.toolsContainer.dom, editorUI.canvasContainer));
-    toolManager.register('move', new MoveTool(events, scene));
-    toolManager.register('rotate', new RotateTool(events, scene));
-    toolManager.register('scale', new ScaleTool(events, scene));
-    toolManager.register('measure', new MeasureTool(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom));
-    toolManager.register('orient', new OrientTool(events, scene, editorUI.toolsContainer.dom, editorUI.canvasContainer, editorUI.annotationContainer.dom));
+    if (!funes.readOnly) {
+        toolManager.register('rectSelection', new RectSelection(events, editorUI.toolsContainer.dom));
+        toolManager.register('brushSelection', new BrushSelection(events, editorUI.toolsContainer.dom, mask));
+        toolManager.register('sphereBrushSelection', new SphereBrushSelection(events, editorUI.toolsContainer.dom, mask));
+        toolManager.register('floodSelection', new FloodSelection(events, editorUI.toolsContainer.dom, mask, editorUI.canvasContainer));
+        toolManager.register('polygonSelection', new PolygonSelection(events, editorUI.toolsContainer.dom, mask));
+        toolManager.register('lassoSelection', new LassoSelection(events, editorUI.toolsContainer.dom, mask));
+        toolManager.register('sphereSelection', new SphereSelection(events, scene, editorUI.canvasContainer, editorUI.tooltips));
+        toolManager.register('boxSelection', new BoxSelection(events, scene, editorUI.canvasContainer, editorUI.tooltips));
+        toolManager.register('eyedropperSelection', new EyedropperSelection(events, editorUI.toolsContainer.dom, editorUI.canvasContainer));
+        toolManager.register('move', new MoveTool(events, scene));
+        toolManager.register('rotate', new RotateTool(events, scene));
+        toolManager.register('scale', new ScaleTool(events, scene));
+        toolManager.register('measure', new MeasureTool(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom));
+        toolManager.register('orient', new OrientTool(events, scene, editorUI.toolsContainer.dom, editorUI.canvasContainer, editorUI.annotationContainer.dom));
 
-    const boundDimensionsOverlay = new BoundDimensionsOverlay(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom);
+        const boundDimensionsOverlay = new BoundDimensionsOverlay(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom);
 
-    editorUI.toolsContainer.dom.appendChild(maskCanvas);
+        editorUI.toolsContainer.dom.appendChild(maskCanvas);
 
-    // show the active selection op (add/remove/intersect) at the cursor
-    registerSelectCursor(events, editorUI.toolsContainer.dom);
+        // show the active selection op (add/remove/intersect) at the cursor
+        registerSelectCursor(events, editorUI.toolsContainer.dom);
+    }
 
     window.scene = scene;
 
     // register events that need scene or other dependencies
     registerEditorEvents(events, editHistory, scene);
     registerSelectionEvents(events, scene);
-    registerSequenceEvents(events, scene);
-    registerDocEvents(scene, events);
-    registerRenderEvents(scene, events);
-    initFileHandler(scene, events, editorUI.appContainer.dom);
+    if (!funes.readOnly) {
+        registerSequenceEvents(events, scene);
+        registerDocEvents(scene, events);
+        registerRenderEvents(scene, events);
+        initFileHandler(scene, events, editorUI.appContainer.dom);
+    }
 
     // apply stored user preferences and start capturing changes to them.
     // registered after the boot-time initialization events above so they are
     // never captured as user changes.
     registerPreferences(events, sceneConfig, urlArgs);
+    funes.attach(scene, editorUI);
 
     // load async models
     scene.start();
 
-    // handle load params
-    const loadList = url.searchParams.getAll('load');
-    const filenameList = url.searchParams.getAll('filename');
-    for (const [i, value] of loadList.entries()) {
-        const decoded = decodeURIComponent(value);
-        const filename = i < filenameList.length ?
-            decodeURIComponent(filenameList[i]) :
-            decoded.split('/').pop();
-
-        await events.invoke('import', [{
-            filename,
-            url: decoded
-        }]);
-    }
-
+    await funes.load();
 
     // handle OS-based file association in PWA mode
-    if ('launchQueue' in window) {
+    if (!funes.readOnly && 'launchQueue' in window) {
         window.launchQueue.setConsumer(async (launchParams: LaunchParams) => {
             for (const file of launchParams.files) {
                 await events.invoke('import', [{
@@ -312,5 +305,10 @@ const main = async () => {
         });
     }
 };
+
+const main = () => start().catch((error) => {
+    reportStartupError(error);
+    throw error;
+});
 
 export { main };

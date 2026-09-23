@@ -89,7 +89,8 @@ const allImportTypes = {
         'application/x-gaussian-splat': ['.json', '.sog', '.splat', '.ksplat', '.spz'],
         'image/webp': ['.webp'],
         'application/x-lcc': ['.lcc', '.lcc2', '.bin'],
-        'text/plain': ['.txt']
+        'text/plain': ['.txt'],
+        'application/zip': ['.zip']
     }
 };
 
@@ -330,6 +331,11 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
 
     // figure out what the set of files are (ply sequence, document, sog set, ply) and then import them
     const importFiles = async (files: ImportFile[], animationFrame = false) => {
+        // Optional host import extension. A handled result uses the native Splat lifecycle.
+        if (events.functions.has('funes.import')) {
+            const result = await events.invoke('funes.import', files);
+            if (result) return result;
+        }
         const filenames = files.map(f => f.filename.toLowerCase());
 
         const result: Splat[] = [];
@@ -392,7 +398,7 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
         fileSelector = document.createElement('input');
         fileSelector.setAttribute('id', 'file-selector');
         fileSelector.setAttribute('type', 'file');
-        fileSelector.setAttribute('accept', '.ply,.splat,meta.json,.json,.webp,.ssproj,.sog,.lcc,.lcc2,.bin,.txt,.ksplat,.spz');
+        fileSelector.setAttribute('accept', '.ply,.splat,meta.json,.json,.webp,.ssproj,.sog,.zip,.lcc,.lcc2,.bin,.txt,.ksplat,.spz');
         fileSelector.setAttribute('multiple', 'true');
 
         fileSelector.onchange = () => {

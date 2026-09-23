@@ -14,22 +14,27 @@
     "license": "MIT",
     "main": "index.js",
     "scripts": {
-        "build": "rollup -c",
-        "watch": "rollup -c -w",
+        "build": "rollup -c rollup.funes.mjs",
+        "watch": "rollup -c rollup.funes.mjs -w",
         "serve": "serve dist -C",
         "develop": "cross-env BUILD_TYPE=debug concurrently --kill-others \"npm run watch\" \"npm run serve\"",
         "develop:auto-launch": "concurrently --kill-others \"xdg-open 'http://localhost:3000/'\" \"npm run watch\" \"npm run serve\"",
         "lint": "eslint src",
-        "lint:locales": "node scripts/check-locales.mjs"
+        "lint:locales": "node scripts/check-locales.mjs",
+        "test": "node --test tests/*.test.mjs",
+        "check:funes": "node scripts/check-funes-upstream.mjs",
+        "prebuild": "npm run check:funes",
+        "postbuild": "node scripts/check-browser-bundle.mjs"
     },
     "engines": {
-        "node": ">=20.19.0"
+        "node": ">=22.0.0"
     },
     "devDependencies": {
         "@playcanvas/eslint-config": "2.1.0",
-        "@playcanvas/splat-transform": "3.4.2",
         "@playcanvas/pcui": "6.1.4",
+        "@playcanvas/splat-transform": "3.4.2",
         "@rollup/plugin-alias": "6.0.0",
+        "@rollup/plugin-commonjs": "29.0.0",
         "@rollup/plugin-image": "3.0.3",
         "@rollup/plugin-json": "6.1.0",
         "@rollup/plugin-node-resolve": "16.0.3",
@@ -48,6 +53,7 @@
         "i18next": "26.4.2",
         "i18next-browser-languagedetector": "8.2.1",
         "i18next-http-backend": "4.0.2",
+        "jszip": "3.10.1",
         "mediabunny": "1.56.0",
         "playcanvas": "2.22.1",
         "postcss": "8.5.28",
