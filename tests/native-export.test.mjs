@@ -28,9 +28,12 @@ const fixture = (bands = 3) => {
     const palette = [new pc.Mat4(), new pc.Mat4().setScale(0.5, 0.5, 0.5)];
     const indices = [0, 0];
     return { entity, resource: { source, shBands: bands }, instances: { count: 2, flags: new Uint8Array(2),
-        sourceRow: Uint32Array.of(0, 1), transformIndex: i => indices[i], colorIndex: () => 0 }, indices,
-        transformPalette: { getTransform: (i, result) => result.copy(palette[i]) }, colorPalette: { getEntry() {} },
-        move(position, rotation, scale) { entity.setLocalPosition(position); entity.setLocalRotation(rotation); entity.setLocalScale(scale); },
+        sourceRow: Uint32Array.of(0, 1), transformIndex: i => indices[i], setTransformIndex: (i, value) => { indices[i] = value; }, colorIndex: () => 0 }, indices,
+        transformPalette: { getTransform: (i, result) => result.copy(palette[i]),
+            alloc: () => { palette.push(new pc.Mat4()); return palette.length - 1; },
+            free: n => { if (n) palette.splice(-n); }, setTransform: (i, value) => { palette[i] = value.clone(); } },
+        async updatePositions() {}, colorPalette: { getEntry() {} },
+        move(position, rotation, scale) { if (position) entity.setLocalPosition(position); if (rotation) entity.setLocalRotation(rotation); if (scale) entity.setLocalScale(scale); },
         getPivot(result) { result.set(entity.getLocalPosition(), entity.getLocalRotation(), entity.getLocalScale()); } };
 };
 const serialize = async (splat, format = 'ply') => {
@@ -131,7 +134,7 @@ test('partial selection pivot stays at its centre and respects an explicit nativ
     close(pivot.transform.position.length(), 0);
 });
 
-test('extension origin is undoable and reset restores the initial camera after the scene scale changes', () => {
+test('extension origin persists through native export, is undoable, and reset restores the initial camera', async () => {
     const events = new Events();
     const splat = fixture();
     splat.entity.setPosition(3, 4, 5);
@@ -139,8 +142,8 @@ test('extension origin is undoable and reset restores the initial camera after t
     splat.localFrame = new pc.Quat();
     splat.setLocalFrame = (origin, rotation) => { splat.localFrameOrigin.copy(origin); splat.localFrame.copy(rotation); };
     events.function('selection', () => splat);
-    let edit;
-    events.on('edit.add', op => { edit = op; op.do(); });
+    let edit, pending;
+    events.on('edit.add', op => { edit = op; pending = op.do(); });
     const camera = { focalPoint: new pc.Vec3(1, 2, 3), azim: 7, elevation: 9, distance: 2, sceneRadius: 4,
         setFocalPoint(v) { this.focalPoint.copy(v); }, setAzimElev(a, e) { this.azim = a; this.elevation = e; },
         setDistance(value) { this.distance = value; } };
@@ -157,13 +160,19 @@ test('extension origin is undoable and reset restores the initial camera after t
     stochastic = 'movement';
     events.fire('preferences.resume');
     assert.equal(stochastic, 'disabled', 'restored upstream preferences must not re-enable noisy rendering');
-    const before = splat.entity.getWorldTransform().clone();
+    const before = parse(await serialize(splat));
     events.fire('splat.setOrigin');
-    assert.ok(splat.entity.getWorldTransform().equals(before), 'setting origin must not move geometry');
-    const worldOrigin = before.transformPoint(splat.localFrameOrigin);
-    close(worldOrigin.length(), 0);
-    edit.undo();
+    await pending;
+    close(splat.entity.getLocalPosition().length(), 0);
     close(splat.localFrameOrigin.length(), 0);
+    const after = parse(await serialize(splat));
+    for (let row = 0; row < before.length; row++) {
+        for (const key of Object.keys(before[row])) close(after[row][key], before[row][key]);
+    }
+    await edit.undo();
+    close(splat.entity.getLocalPosition().distance(new pc.Vec3(3, 4, 5)), 0);
+    close(splat.localFrameOrigin.length(), 0);
+    await splat.resource.source.close();
     events.fire('postrender');
     camera.focalPoint.set(0, 0, 0); camera.azim = 100; camera.sceneRadius = 8;
     events.fire('funes.camera.reset');

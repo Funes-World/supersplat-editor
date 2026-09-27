@@ -839,6 +839,8 @@ const serializeSpz = async (splats: Splat[], settings: SpzSettings, fs: FileSyst
 };
 
 export {
+    createExportSource,
+    createGpuDevice,
     Writer,
     writeResourceFile,
     writeSplatFile,

@@ -17,6 +17,7 @@ class OriginMarker {
         this.dom = document.createElement('div');
         this.dom.id = 'origin-marker';
         this.dom.setAttribute('aria-hidden', 'true');
+        this.dom.title = 'World origin (0, 0, 0)';
         this.container.appendChild(this.dom);
 
         this.updateFn = this.update.bind(this);
@@ -43,7 +44,7 @@ class OriginMarker {
         const finite = Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(this.screen.z);
 
         const visible = finite &&
-            this.screen.z >= -1 && this.screen.z <= 1 &&
+            (document.body.classList.contains('funes-framing') || (this.screen.z >= -1 && this.screen.z <= 1)) &&
             x >= 0 && x <= clientWidth &&
             y >= 0 && y <= clientHeight;
 

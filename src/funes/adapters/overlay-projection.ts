@@ -13,6 +13,19 @@ const fitFrameSize = (width: number, height: number, aspect?: number) => {
         : { width, height: width / aspect };
 };
 
+// Leave 10% on every side so the complete stroke stays inside the editor.
+// Use the same rectangle for the overlay and preview lens compensation.
+const fitCompositionFrame = (width: number, height: number, aspect?: number) => {
+    const size = fitFrameSize(width * 0.8, height * 0.8, aspect);
+    return { ...size, x: (width - size.width) / 2, y: (height - size.height) / 2 };
+};
+
+const compositionFov = (width: number, height: number, aspect: number | undefined, horizontal: boolean) => {
+    const frame = fitCompositionFrame(width, height, aspect);
+    const tangent = Math.tan(Math.PI / 8) * height / frame.height;
+    return 2 * Math.atan(tangent * (horizontal ? width / height : 1)) * 180 / Math.PI;
+};
+
 // Editor v3's camera.worldToScreen uses this same projection * view matrix
 // and -w..w clip volume, even with a WebGPU render target. Clip before the
 // perspective divide so an edge crossing the camera cannot flip or reconnect
@@ -55,4 +68,4 @@ const projectFrameEdges = (corners: readonly Vec3[], viewProjection: Mat4, ortho
     return edges;
 };
 
-export { fitFrameSize, projectFrameEdges };
+export { fitFrameSize, fitCompositionFrame, compositionFov, projectFrameEdges };

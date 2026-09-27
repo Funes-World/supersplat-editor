@@ -114,3 +114,12 @@ test('preview capabilities cannot export and stale level completion cannot overw
     s.message({ type: 'supersplat:status' });
     assert.equal(s.messages.length, count);
 });
+
+test('LOD requests fail explicitly when the runtime has no browser generator', async () => {
+    const s = setup();
+    s.events.fire('embed.load.status', { state: 'ready' });
+    s.message({ type: 'supersplat:export', requestId: 'lod', exportType: 'lod', filename: 'model.zip' });
+    await tick();
+    assert.equal(s.messages.at(-1)[0].ok, false);
+    assert.equal(s.exports.length, 0);
+});

@@ -1,9 +1,10 @@
+import { attachFraming, captureFraming } from './adapters/framing';
 import './ui/styles.scss';
 import i18next from 'i18next';
 import type { Events } from '../events';
 import type { Scene } from '../scene';
 import type { EditorUI } from '../ui/editor';
-import { exportModel, loadModel, splatsInScene } from './adapters/editor-v3';
+import { generateLodModel, exportModel, loadModel, splatsInScene } from './adapters/editor-v3';
 import { registerBridge } from './bridge';
 import { isLodArchiveFilename } from './lod/archive';
 import { isLodFilename } from './lod/manifest';
@@ -20,14 +21,21 @@ const createFunesIntegration = (events: Events, url: URL) => {
     let scene: Scene;
     const bridge = registerBridge(events, url, {
         hasModel: () => !!scene && splatsInScene(scene).length > 0,
-        export: (format, filename, bands) => exportModel(scene, format, filename, bands)
+        export: (format, filename, bands) => exportModel(scene, format, filename, bands),
+        generateLod: (settings, onProgress) => generateLodModel(scene, settings, onProgress),
+        framing: () => url.searchParams.get('gaussianFraming') === '1' ? captureFraming(scene, Number(url.searchParams.get('safeFrameAspect'))) : null
     });
     startupFailure = error => bridge.setStatus({ state: 'error', preview,
         error: !navigator.gpu ? 'SuperSplat 3.3 requires WebGPU. Use a supported browser and enable hardware acceleration.' :
             (error instanceof Error ? error.message : 'The editor could not start.') });
     const importTarget = async (target: ImportTarget) => {
-        const model = await loadModel(scene, target);
-        try { await scene.add(model); return model; } catch (error) { model.destroy(); throw error; }
+        events.fire('startSpinner');
+        try {
+            const model = await loadModel(scene, target);
+            try { await scene.add(model); return model; } catch (error) { model.destroy(); throw error; }
+        } finally {
+            events.fire('stopSpinner');
+        }
     };
     return {
         preview,
@@ -52,6 +60,11 @@ const createFunesIntegration = (events: Events, url: URL) => {
                 if (models.length) {
                     const bounds = scene.bound;
                     scene.camera.focus({ focalPoint: bounds.center, radius: bounds.halfExtents.length(), speed: 0 });
+                }
+                if (!readOnly && url.searchParams.get('gaussianFraming') === '1') {
+                    let restored;
+                    try { restored = JSON.parse(url.searchParams.get('initialFraming') || 'null'); } catch {}
+                    attachFraming(scene, restored, Number(url.searchParams.get('safeFrameAspect')));
                 }
                 bridge.setStatus({ state: 'ready', preview,
                     lodEnvironment: models.some(model => !!(model.asset.data as { lodEnvironment?: boolean }).lodEnvironment) });

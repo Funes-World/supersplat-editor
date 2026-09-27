@@ -18,6 +18,11 @@
       "upstreamSha256": "b0e731588b608c702134e9bbfa1c988dfc1babf9415ca1552baee87eaee45741",
       "patchedSha256": "f83528dcf50268d1ca84551088d172d85488b65141c4aa30893e3bbf7ee8888e",
       "reason": "Offer ZIP picking and optional host import dispatch before native format detection."
+    },
+    "src/splat-serialize.ts": {
+      "upstreamSha256": "1904a35504bbb4fb43f4fe286e1ce7fecc7a89828937895a756b66f6ea57b139",
+      "patchedSha256": "aace6ac27d1d70369ccad0ab75e627507b8c5437ecc340119c98f05d4ae11441",
+      "reason": "Expose native edited chunk source and GPU factory to the FUNES browser LOD adapter without serializing or compressing an intermediate model."
     }
   },
   "upstreamFiles": {

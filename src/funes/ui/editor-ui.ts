@@ -1,7 +1,7 @@
 import { Button } from '@playcanvas/pcui';
-import { Mat4, Quat, Vec3 } from 'playcanvas';
+import { Vec3 } from 'playcanvas';
 
-import { SetLocalFrameOp } from '../../edit-ops';
+import { SetModelOriginOp } from '../adapters/set-origin';
 import type { Events } from '../../events';
 import type { Scene } from '../../scene';
 import type { Splat } from '../../splat';
@@ -47,12 +47,8 @@ const attachEditorUi = (events: Events, scene: Scene, ui: EditorUI, readOnly: bo
     events.on('splat.setOrigin', () => {
         const splat = events.invoke('selection') as Splat;
         if (!splat) return;
-        // v3 has a native local frame. Moving its origin to world zero keeps
-        // geometry unchanged, supports undo, and avoids rewriting GPU arrays.
-        const origin = new Mat4().copy(splat.entity.getLocalTransform()).invert().transformPoint(Vec3.ZERO);
-        events.fire('edit.add', new SetLocalFrameOp({ splat,
-            oldOrigin: splat.localFrameOrigin.clone(), oldFrame: splat.localFrame.clone(),
-            newOrigin: origin, newFrame: new Quat() }));
+        if (splat.entity.getLocalPosition().equals(Vec3.ZERO) && !splat.hasLocalFrame) return;
+        events.fire('edit.add', new SetModelOriginOp(splat));
     });
     const buttons: Button[] = [];
     const toolbar = document.getElementById('bottom-toolbar');

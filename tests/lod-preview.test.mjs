@@ -16,10 +16,10 @@ function setup(load) {
     const exports = {};
     const handlers = new Map();
     const windowHandlers = new Map();
-    const calls = { loads: [], focused: 0, cleared: 0 };
+    const calls = { spinner: [], loads: [], focused: 0, cleared: 0 };
     vm.runInNewContext(compiled, { exports, File, ArrayBuffer, AbortController, DOMException,
         window: { addEventListener: (name, fn) => windowHandlers.set(name, fn) } });
-    const events = { function: (name, fn) => handlers.set(name, fn), on: (name, fn) => handlers.set(name, fn) };
+    const events = { fire: name => calls.spinner.push(name), function: (name, fn) => handlers.set(name, fn), on: (name, fn) => handlers.set(name, fn) };
     const scene = {
         models: [],
         assetLoader: { load: async (request) => { calls.loads.push(request); return load ? load(request) : model(request.lodPreviewLevel); } },
@@ -40,6 +40,7 @@ test('preview reuses its ZIP across true level loads, frees the old scene and fr
     const first = await s.load({ data, level: 0, manifestPath: 'scene/lod-meta.json' });
     const old = s.scene.models[0];
     const second = await s.load({ level: 2 });
+    assert.deepEqual(s.calls.spinner, ['startSpinner', 'stopSpinner', 'startSpinner', 'stopSpinner']);
     assert.equal(first.pointCount, 1000);
     assert.equal(second.pointCount, 1000 / 3);
     assert.equal(second.lodLevels, 3);
@@ -118,4 +119,10 @@ test('invalid ZIP inputs and unsupported levels do not allocate loader resources
     }
     assert.equal(s.calls.loads.length, 0);
     s.dispose();
+});
+
+test('failed preview loading always releases the native spinner', async () => {
+    const s = setup(async () => { throw new Error('decode failed'); });
+    await assert.rejects(s.load({ data: new ArrayBuffer(2), level: 0 }), /decode failed/);
+    assert.deepEqual(s.calls.spinner, ['startSpinner', 'stopSpinner']);
 });

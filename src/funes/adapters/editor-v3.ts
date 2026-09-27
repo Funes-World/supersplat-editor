@@ -6,7 +6,9 @@ import { ElementType } from '../../element';
 import { MappedReadFileSystem, loadSplatSource } from '../../io';
 import type { Scene } from '../../scene';
 import { Splat } from '../../splat';
-import { writeSplatFile } from '../../splat-serialize';
+import { createExportSource, createGpuDevice, writeSplatFile } from '../../splat-serialize';
+import { createBrowserLodScratch } from '../lod/scratch';
+import { generateBrowserLod } from '../lod/generate';
 import { isLodArchiveFilename } from '../lod/archive';
 import { isLodFilename } from '../lod/manifest';
 import { openLodSource } from '../lod/source';
@@ -75,3 +77,13 @@ const exportModel = async (scene: Scene, format: 'ply' | 'splat', filename: stri
 };
 
 export { exportModel, loadModel, splatsInScene };
+
+export const generateLodModel = (scene: Scene, settings: any, onProgress: (message: string) => void) =>
+    scene.commandQueue.enqueue(() => generateBrowserLod({ settings, onProgress, createDevice: createGpuDevice, createScratch: createBrowserLodScratch,
+        createSource: async () => {
+            const built = await createExportSource(splatsInScene(scene), { maxSHBands: 3 });
+            if (!built) throw new Error('The edited model is empty.');
+            built.pool.destroy();
+            return built.source;
+        }
+    }));

@@ -17,9 +17,15 @@
 }
 .funes-editor #origin-marker {
     position: absolute; width: 10px; height: 10px; border-radius: 50%;
-    background: #ff3333; transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
+    background: #f1a040; transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
 }
 .funes-editor #initial-frame-overlay {
     position: absolute; inset: 0; pointer-events: none; z-index: 9; overflow: visible;
 }
 .funes-editor .funes-toolbar-button { width: auto; padding: 0 8px; }
+
+.funes-framing {
+    #transform, #bottom-toolbar-scale { display: none !important; }
+    .funes-framing-control { position: absolute; top: 24px; left: 24px; z-index: 12; padding: 10px; background: #252525; color: white; }
+    .funes-framing-control input { width: 80px; margin-left: 8px; }
+}

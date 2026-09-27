@@ -38,6 +38,7 @@ const registerLodPreview = (events: Events, scene: Scene, load: (request: import
             await previous;
             active.signal.throwIfAborted();
             let model: Splat | undefined;
+            events.fire('startSpinner');
             try {
                 model = await load({ filename: 'preview.zip',
                     contents,
@@ -62,6 +63,8 @@ const registerLodPreview = (events: Events, scene: Scene, load: (request: import
                     model.destroy();
                 }
                 throw error;
+            } finally {
+                events.fire('stopSpinner');
             }
         };
         loading = operation();

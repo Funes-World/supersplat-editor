@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { checkUpstream, sha256 } from '../scripts/check-funes-upstream.mjs';
 
-test('the checked-in release has only the two declared upstream source seams', () => {
+test('the checked-in release has only the declared upstream source seams', () => {
     const root = fileURLToPath(new URL('../', import.meta.url));
     const manifest = JSON.parse(readFileSync(path.join(root, 'funes-upstream.json'), 'utf8'));
-    assert.deepEqual(Object.keys(manifest.seams).sort(), ['src/file-handler.ts', 'src/main.ts']);
+    assert.deepEqual(Object.keys(manifest.seams).sort(), ['src/file-handler.ts', 'src/main.ts', 'src/splat-serialize.ts']);
     assert.equal(manifest.dependencies.playcanvas, '2.22.1');
     assert.equal(manifest.dependencies['@playcanvas/splat-transform'], '3.4.2');
     assert.ok(checkUpstream(root, manifest) > 200);

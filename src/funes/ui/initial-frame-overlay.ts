@@ -1,7 +1,7 @@
 import { Mat4, Vec3 } from 'playcanvas';
 
 import type { Scene } from '../../scene';
-import { fitFrameSize, projectFrameEdges } from '../adapters/overlay-projection';
+import { fitFrameSize, fitCompositionFrame, projectFrameEdges } from '../adapters/overlay-projection';
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -126,6 +126,23 @@ class InitialFrameOverlay {
     }
 
     update() {
+        // Composition is a screen-space guide, not a plane attached to the
+        // original camera target. It must stay still during zoom, pan and orbit.
+        if (document.body.classList.contains('funes-framing')) {
+            if (!this.container || !this.path || !this.svg) return;
+            const { clientWidth, clientHeight } = this.container;
+            if (!clientWidth || !clientHeight) return;
+            const { width, height, x, y } = fitCompositionFrame(clientWidth, clientHeight, this.safeFrameAspect);
+            this.svg.setAttribute('viewBox', `0 0 ${clientWidth} ${clientHeight}`);
+            this.path.setAttribute('d', `M ${x},${y} h ${width} v ${height} h ${-width} Z`);
+            this.path.style.display = '';
+            if (this.label) {
+                this.label.style.display = '';
+                this.label.setAttribute('x', `${Math.max(8, x + width - this.label.getComputedTextLength() - 8)}`);
+                this.label.setAttribute('y', `${y + 8}`);
+            }
+            return;
+        }
         if (!this.captured) {
             this.captureInitialCorners();
         }

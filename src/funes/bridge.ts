@@ -14,6 +14,8 @@ const trustedParentOrigin = (url: URL, referrer: string): string | null => {
 };
 
 type BridgeAdapter = {
+    framing?: () => any;
+    generateLod?: (settings: any, onProgress: (message: string) => void) => Promise<{ parts: Uint8Array[]; counts: number[]; manifestPath: string }>;
     hasModel: () => boolean;
     export: (format: 'ply' | 'splat', filename: string, bands: number) => Promise<Uint8Array[]>;
 };
@@ -21,7 +23,7 @@ type BridgeAdapter = {
 const registerBridge = (events: Events, url: URL, adapter: BridgeAdapter) => {
     const preview = url.searchParams.get('lodPreview') === '1';
     const readOnly = preview || url.searchParams.get('mode') === 'viewer';
-    const capabilities = { gaussianEdit: !readOnly, fullShPlyExport: !readOnly,
+    const capabilities = { gaussianFraming: !readOnly && !!adapter.framing, gaussianEdit: !readOnly, fullShPlyExport: !readOnly, browserLodGeneration: !readOnly && !!adapter.generateLod,
         streamedSogEdit: !readOnly, lodPreview: preview, graphicsDiagnostics: false, webglFallback: false };
     const parentOrigin = trustedParentOrigin(url, document.referrer);
     let status: LoadState = { state: 'loading', preview };
@@ -69,9 +71,10 @@ const registerBridge = (events: Events, url: URL, adapter: BridgeAdapter) => {
             previewRequest = '';
             events.fire('lod.preview.cancel');
         } else if (data.type === 'supersplat:export') {
-            const format = data.exportType === 'splat' || data.exportType === 'sog' ? 'splat' : 'ply';
+            const format = data.exportType === 'lod' ? 'lod' : data.exportType === 'splat' || data.exportType === 'sog' ? 'splat' : 'ply';
             const name = typeof data.filename === 'string' ? data.filename : 'model';
-            const filename = name.toLowerCase().endsWith(`.${format}`) ? name : `${name}.${format}`;
+            const extension = format === 'lod' ? 'zip' : format;
+            const filename = name.toLowerCase().endsWith(`.${extension}`) ? name : `${name}.${extension}`;
             const bands = Number.isInteger(data.maxSHBands) && data.maxSHBands >= 0 && data.maxSHBands <= 3 ? data.maxSHBands : 3;
             const reply = { type: 'supersplat:export:result', requestId: data.requestId, filename, exportType: format };
             (async () => {
@@ -81,13 +84,16 @@ const registerBridge = (events: Events, url: URL, adapter: BridgeAdapter) => {
                     if (status.state !== 'ready' || !adapter.hasModel()) throw new Error('The model has not finished loading.');
                     if (exporting) throw new Error('A model export is already in progress.');
                     exporting = claimed = true;
-                    const parts = await adapter.export(format, filename, bands);
+                    const framing = adapter.framing?.();
+                    const generated = format === 'lod' ? await adapter.generateLod?.(data.settings, message =>
+                        send(source, { type: 'supersplat:export:progress', requestId: data.requestId, message })) : null;
+                    const parts = format === 'lod' ? generated?.parts : await adapter.export(format, filename, bands);
                     if (!Array.isArray(parts) || !parts.length || parts.some(p => !(p instanceof Uint8Array)) || !parts.some(p => p.byteLength)) {
                         throw new Error('The editor returned an empty or invalid model.');
                     }
                     const buffers = parts.map(p => p.byteOffset === 0 && p.byteLength === p.buffer.byteLength && p.buffer instanceof ArrayBuffer ?
                         p.buffer : p.slice().buffer);
-                    send(source, { ...reply, ok: true, buffers }, buffers);
+                    send(source, { ...reply, ok: true, buffers, ...(framing ? { framing } : {}), ...(generated ? { counts: generated.counts, manifestPath: generated.manifestPath } : {}) }, buffers);
                 } catch (error) {
                     send(source, { ...reply, ok: false, error: error?.message || String(error) });
                 } finally { if (claimed) exporting = false; }

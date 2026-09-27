@@ -45,7 +45,7 @@ The historical `exportType: 'sog'` iframe message continues to produce binary `.
 
 ### Upstream boundary
 
-`funes-upstream.json` pins the repository, release, commit, protocol and adapter. It verifies exact declared, locked and installed PlayCanvas, splat-transform, PCUI and JSZip versions, records hashes for upstream source/assets/build configuration and explicitly permits only two source seams:
+`funes-upstream.json` pins the repository, release, commit, protocol and adapter. It verifies exact declared, locked and installed PlayCanvas, splat-transform, PCUI and JSZip versions, records hashes for upstream source/assets/build configuration and explicitly permits three source seams:
 
 1. `src/main.ts`: initialize integration, read-only registration gates, defaults/localization, startup error reporting, and delegated query loading.
 2. `src/file-handler.ts`: ZIP chooser extension and one optional FUNES import dispatcher before upstream format detection.
@@ -134,4 +134,54 @@ Before replacing an active deployment, verify in a real browser: handshake and s
 
 ## Follow-up work
 
-Future upgrades begin with an isolated checkout of the desired upstream release. Review the two seams and adapter APIs, run the full suite and browser checklist, then update hashes deliberately. The guard should fail on an unreviewed upstream change. Do not copy old renderer internals or normalize the whole upstream source tree to hide merge differences. If upstream exposes a plugin import/bootstrap interface, remove the corresponding seam after proving equivalent behavior.
+Future upgrades begin with an isolated checkout of the desired upstream release. Review the declared seams and adapter APIs, run the full suite and browser checklist, then update hashes deliberately. The guard should fail on an unreviewed upstream change. Do not copy old renderer internals or normalize the whole upstream source tree to hide merge differences. If upstream exposes a plugin import/bootstrap interface, remove the corresponding seam after proving equivalent behavior.
+
+## Browser LOD generation
+
+`src/funes/lod/generate.ts` generates the final spatial LOD package on the user's WebGPU device. `src/funes/adapters/editor-v3.ts` holds the editor command queue while reading the edited native chunk source with all available SH bands. The additional reviewed seam in `src/splat-serialize.ts` only exports `createExportSource` and `createGpuDevice`; serialization algorithms remain upstream. Decimation starts independently from full detail at each level. Reduced intermediate float PLY stays in browser memory for random-access spatial packing, avoiding an extra lossy intermediate SOG encode.
+
+The bridge advertises `browserLodGeneration`, emits request-scoped progress, and transfers the final archive plus level counts. The CMS retains these bytes for preview and upload; the iframe never writes CMS/S3. The full model must fit available memory, and generation requires WebGPU. The upstream boundary test includes the serializer export seam. The CMS workflow is documented in [Gaussian editing](../../docs/plugins/model3d-field/streamed-sog-editing.md).
+
+### Browser generation scratch storage
+
+Multi-block adaptive simplification writes merge plans and spill data to a per-generation private browser directory (OPFS), supplied through `DecimateAdaptiveSpill`. The directory is removed after normal completion or failure, and unfinished writers are aborted first. No directory picker or installation is required. Unsupported storage or a browser quota failure stops generation before upload. Abrupt browser/process termination can leave temporary storage behind; normal cleanup cannot be guaranteed after a crash. The implementation is `supersplat-editor/src/funes/lod/scratch.ts` (relative to CMS), wired by the Editor version adapter. No additional server configuration is introduced.
+
+### Generated archive paths
+
+The browser spatial writer resolves output names against an explicit virtual `/funes-lod/` root. The package filesystem strips only that root before writing ZIP entries and rejects paths outside it. Every stored path is relative, including `lod-meta.json` and chunk resources. This keeps generated packages compatible with the unchanged preview and server path validation; neither validator permits absolute paths. The real generator regression checks stored names and JSZip original names as well as level counts and SH bands.
+
+### Loading feedback
+
+FUNES model import and local LOD preview decoding fire the native reference-counted spinner events around loading and scene insertion. A finally block releases the spinner after success or failure; cancelled preview operations also release it.
+
+## Gaussian composition (opt-in)
+
+CMS enables `gaussianFraming=1` and optionally provides `initialFraming` JSON plus the existing `safeFrameAspect`. `src/funes/adapters/framing.ts` provides camera-only **Framing size (%)**, a camera-relative Safe Display rectangle, and a 45-degree vertical lens within that rectangle. The physical Scale panel/tool is hidden in this mode. Explicit geometry operations otherwise retain native behavior. Unflagged integrations are unchanged.
+
+Export responses include `framing` captured before asynchronous generation: version 1, position, target, fov, and derived orbit values. CMS requires this capability for flagged saves, persists it transactionally in Scene `metadata.editorState` (including optional `safeFrameAspect`), and passes it back on reopen. Scene camera overrides remain separate and are never overwritten by a Model Editor save. No geometry normalization runs on restoration. Tests in `tests/framing.test.mjs` cover repeated capture/restore without touching model transforms. See [CMS editing contract](../../docs/plugins/model3d-field/streamed-sog-editing.md) for persistence and compatibility rules.
+
+### Screen-space Safe Display correction (2026-09-26)
+
+In opt-in framing mode, `InitialFrameOverlay.update` draws the fitted rectangle directly in viewport pixels. It does not capture or project world-space corners. This corrects the prior one-time capture guard, which kept the old reference plane and made it shrink or move with the model during camera changes. Legacy unflagged overlays keep their original behavior. `tests/initial-frame-overlay.test.mjs` verifies that repeated updates never read the camera and that resizing preserves the requested aspect ratio.
+
+### Responsive composition frame (2026-09-27)
+
+The opt-in Safe Display rectangle now fits within 80% of the Editor viewport, leaving at least 10% on each side so its full outline remains visible on narrow and wide windows. It retains the host display aspect ratio. The overlay and camera share `fitCompositionFrame` and `compositionFov` in `supersplat-editor/src/funes/adapters/overlay-projection.ts` (Editor-relative path: `src/funes/adapters/overlay-projection.ts`). The preview lens compensates for the inset rectangle while preserving physical camera distance: the frame interior still represents the saved vertical 45-degree composition. Resizing never changes model scale or persisted camera pose. CSS viewport dimensions are used consistently for the overlay and lens, independently of device pixel ratio.
+
+`tests/initial-frame-overlay.test.mjs` in the Editor verifies narrow, wide and high-resolution viewport containment, target aspect ratio, and equal frame-relative projection for horizontal and vertical FOV cameras. Legacy unflagged reference planes are unchanged.
+
+### Framing readout synchronization (2026-09-27)
+
+The Framing size percentage now follows camera distance changes from wheel zoom as well as numeric input, relative to the initial restored distance. Focused input is left untouched to allow typing. Before the restoration described below, Set Origin used the v3 local-frame operation: it relocates the editing pivot to world zero, unlike the legacy implementation which baked translation into point positions and zeroed the entity translation. The readout fix itself did not change origin behavior.
+
+### Restored model-origin operation (2026-09-27)
+
+Set Origin now restores the legacy rebase semantics: bake entity translation into every Gaussian's point transform, then zero entity translation and reset the local editing frame. It preserves world-space geometry, rotation, scale, point attributes, and the presentation camera. It includes all instances regardless of selection/visibility and composes with existing per-point transforms. The native export path consumes the point transform palette, so PLY/SOG and browser-generated LOD retain the rebased coordinates; reopening needs no editor-only pivot metadata.
+
+`src/funes/adapters/set-origin.ts` in the Editor implements the operation through the existing edit queue and supports undo/redo; `src/funes/ui/editor-ui.ts` wires the button. Zero/invalid scale is rejected. Clicking again at zero with an identity local frame is a no-op. `tests/set-origin.test.mjs` verifies world geometry and export-transform equivalence under rotated, nonuniformly scaled objects with existing point transforms, repeat operations, and undo/redo. No scene schema, Mesh behavior, or model scale is changed. Real-model save/reopen visual acceptance remains a separate check.
+
+### Fixed world-origin reference (2026-09-27)
+
+Gaussian composition editing now constrains the actual orbit target to world `(0,0,0)`, matching the OBJ editor's origin reference. Native model Move operations translate the model relative to that point; camera pan/fly input cannot move the composition target. Orbit and camera distance remain adjustable. `lockFramingOrigin` in the Editor's `src/funes/adapters/framing.ts` enforces the target after native controller input, before camera matrix calculation. It does not alter model transforms. Previously saved off-center framing is re-aimed toward zero when reopening the Editor; already published viewer data is not migrated. Newly saved framing targets world zero.
+
+The 10-pixel solid orange world-origin dot (without crosshairs or an outer ring) is projected from the actual world-zero position and remains at the center of the responsive Safe Display rectangle. Its guide visibility ignores model near/far clipping in framing mode so off-center geometry cannot hide it. `src/funes/ui/origin-marker.ts` and `src/funes/ui/styles.scss` implement the marker. Set Origin keeps the rebasing operation above and does not move the camera or world reference. Mesh and unflagged standalone editors retain their existing camera behavior. Tests verify that simulated pan/fly input is constrained before projection without accessing model geometry.
