@@ -29,3 +29,8 @@
     .funes-framing-control { position: absolute; top: 24px; left: 24px; z-index: 12; padding: 10px; background: #252525; color: white; }
     .funes-framing-control input { width: 80px; margin-left: 8px; }
 }
+
+// CMS Gaussian editing keeps framing via wheel/orbit, without these panels.
+.funes-editor {
+    #scene-panel, .funes-framing-control, .color-panel-section { display: none !important; }
+}

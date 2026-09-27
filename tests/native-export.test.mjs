@@ -129,6 +129,10 @@ test('partial selection pivot stays at its centre and respects an explicit nativ
     handler.activate();
     const pivot = events.invoke('pivot');
     close(pivot.transform.position.x, -4); close(pivot.transform.position.y, -6); close(pivot.transform.position.z, 8);
+    splat.numSelected = splat.instances.count;
+    handler.placePivot();
+    close(pivot.transform.position.length(), 0);
+    splat.numSelected = 1;
     splat.hasLocalFrame = true;
     handler.placePivot();
     close(pivot.transform.position.length(), 0);

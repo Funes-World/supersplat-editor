@@ -1,5 +1,5 @@
 import { Button } from '@playcanvas/pcui';
-import { Vec3 } from 'playcanvas';
+import { Quat, Vec3 } from 'playcanvas';
 
 import { SetModelOriginOp } from '../adapters/set-origin';
 import type { Events } from '../../events';
@@ -25,6 +25,9 @@ const attachEditorUi = (events: Events, scene: Scene, ui: EditorUI, readOnly: bo
     applyMode();
     events.on('preferences.resume', applyMode);
     if (readOnly) return;
+    // The native axis handler changes angles and then enables orthographic mode.
+    // Embedded model editing keeps its perspective lens and existing distance.
+    events.on('camera.align', () => { scene.camera.ortho = false; });
     const marker = new OriginMarker(scene, ui.canvasContainer.dom);
     let frame: InitialFrameOverlay;
     let initial: { focal: Vec3; azim: number; elev: number; distance: number; radius: number };
@@ -47,7 +50,12 @@ const attachEditorUi = (events: Events, scene: Scene, ui: EditorUI, readOnly: bo
     events.on('splat.setOrigin', () => {
         const splat = events.invoke('selection') as Splat;
         if (!splat) return;
-        if (splat.entity.getLocalPosition().equals(Vec3.ZERO) && !splat.hasLocalFrame) return;
+        if (splat.entity.getLocalPosition().equals(Vec3.ZERO) && !splat.hasLocalFrame) {
+            // Picking can move the gizmo independently of the saved local frame.
+            // Refresh it even when the geometry already has the requested origin.
+            splat.setLocalFrame(Vec3.ZERO, Quat.IDENTITY);
+            return;
+        }
         events.fire('edit.add', new SetModelOriginOp(splat));
     });
     const buttons: Button[] = [];

@@ -12,7 +12,8 @@ class CenteredSplatsTransformHandler extends SplatsTransformHandler {
     placePivot() {
         const transform = new Transform();
         this.splat.getPivot(transform);
-        if (!this.splat.hasLocalFrame && this.splat.numSelected > 0) {
+        const editableCount = this.splat.instances.count - (this.splat.numDeleted || 0);
+        if (!this.splat.hasLocalFrame && this.splat.numSelected > 0 && this.splat.numSelected < editableCount) {
             this.splat.entity.getWorldTransform().transformPoint(this.splat.selectionBound.center, transform.position);
         }
         this.events.invoke('pivot').place(transform);
