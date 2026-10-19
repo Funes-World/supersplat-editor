@@ -36,6 +36,7 @@ test('hello pins protocol, runtime and real WebGPU-only capabilities to the trus
     assert.equal(reply.capabilities.fullShPlyExport, true);
     assert.equal(reply.graphicsBackend, 'webgpu');
     assert.equal(reply.capabilities.webglFallback, false);
+    assert.equal(reply.capabilities.lodPreviewFraming, false);
     assert.equal(reply.capabilities.graphicsDiagnostics, false);
     assert.ok(Object.values(reply.capabilities).every(value => typeof value === 'boolean'));
     assert.equal(origin, 'https://cms.example');
@@ -94,6 +95,7 @@ test('preview capabilities cannot export and stale level completion cannot overw
     s.events.function('lod.preview.load', request => new Promise(resolve => pending.set(request.level, resolve)));
     s.message({ type: 'funes:hello', requestId: 'h', protocolVersion: 1 });
     assert.equal(s.messages.at(-1)[0].capabilities.gaussianEdit, false);
+    assert.equal(s.messages.at(-1)[0].capabilities.lodPreviewFraming, true);
     s.events.fire('embed.load.status', { state: 'ready' });
     s.message({ type: 'supersplat:export' });
     await tick();
@@ -113,6 +115,20 @@ test('preview capabilities cannot export and stale level completion cannot overw
     s.bridge.dispose();
     s.message({ type: 'supersplat:status' });
     assert.equal(s.messages.length, count);
+});
+
+test('preview forwards the captured camera only with the archive load, never a level change', async () => {
+    const s = setup('lodPreview=1');
+    const requests = [];
+    s.events.function('lod.preview.load', request => { requests.push(request); return { level: request.level }; });
+    const framing = { version: 1, position: [4, 6, 8], target: [1, 2, 3], fov: 45, safeFrameAspect: 2 };
+    s.message({ type: 'supersplat:lod-preview:load', requestId: 'first', data: new ArrayBuffer(2), level: 0, framing });
+    await tick();
+    assert.equal(requests[0].framing, framing);
+    s.message({ type: 'supersplat:lod-preview:level', requestId: 'second', level: 2, framing });
+    await tick();
+    assert.equal(Object.hasOwn(requests[1], 'framing'), false);
+    s.bridge.dispose();
 });
 
 test('LOD requests fail explicitly when the runtime has no browser generator', async () => {

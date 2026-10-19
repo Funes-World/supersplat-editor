@@ -2,9 +2,10 @@
 title: FUNES CMS integration for SuperSplat 3.3
 status: current
 owner: FUNES
-last_updated: 2026-09-21
+last_updated: 2026-10-19
 related_docs:
   - ../../docs/plugins/model3d-field/streamed-sog-upload.md
+  - ../../docs/plugins/model3d-field/streamed-sog-editing.md
 ---
 
 # FUNES CMS integration for SuperSplat 3.3
@@ -28,7 +29,7 @@ SuperSplat 3.3 is **WebGPU only**. There is no WebGL fallback in this editor. Th
 | `.ply`, `.sog`, `.splat` editing | Native `loadSplatSource` and `EditorSplatResource`; status becomes ready only after the model is added |
 | LOD editing | Manifest references select LOD0 across all leaves; environment is included once; all chunks become one editable native source |
 | LOD preview | The requested real level is decoded; a successful replacement removes the old scene, a failed replacement keeps it visible |
-| Preview comparison | The first level fits the camera; later levels preserve the viewpoint |
+| Preview comparison | An optional captured Editor view initializes the first level with the same camera pose and Safe Display lens; older requests without a view fit the bounds. Later levels preserve the current comparison viewpoint |
 | Uniform scale | Native transform panel, pivot and entity transform; exported coordinates and Gaussian dimensions include the scale |
 | Selected-point editing | Native instance/palette operations; an adapter preserves the previous selection-centre pivot unless an explicit local frame is set |
 | Set origin | Native undoable local-frame operation places the pivot at world zero while preserving the world geometry; no private GPU arrays are rewritten |
@@ -54,9 +55,9 @@ The build remains the upstream Rollup configuration, wrapped by `rollup.funes.mj
 
 No custom renderer, shaders, `Splat`, `EditorSplatResource`, standard serializer or core UI component is forked. The prior SOG GPU decompression workaround is removed. The custom layer uses native CPU `ChunkSource` data and native resource uploads. The native streamed-SOG reader assumes uniform SH bands and omits environment data, so FUNES validates its manifest independently and composes native SOG sources using `concatSource`. A small adapter normalizes mixed SH layouts with correct per-channel offsets and bounds the cache to two decoded chunks.
 
-CMS passes `safeFrameAspect` from the full editor-layout dimensions, including the right save column. The overlay fits that ratio inside the actual narrower viewport before capturing its corners. Standalone loads without a valid ratio retain the viewport ratio. This query only controls the guide, not the camera or exported model.
+CMS passes `safeFrameAspect` from the full editor-layout dimensions, including the right save column. The overlay fits that ratio inside 80% of the actual narrower viewport. Standalone loads without a valid ratio retain the viewport ratio. The opted-in Editor camera compensates its lens so that the frame interior represents the saved vertical 45-degree composition, without changing the model or physical camera distance.
 
-The reference frame remains the initial world-space plane; resizing or moving the camera projects the same frame, and model scaling does not redefine it. It is a framing guide, not a save action or crop. Upstream render code and the website Viewer LOD budget policy are unchanged.
+For opted-in CMS framing, the reference rectangle stays fixed in screen space during orbit, pan and zoom; resizing changes its fitted dimensions. Legacy sessions retain their initial world-space reference plane. It is a framing guide, not a save action or crop. Upstream render code and the website Viewer LOD budget policy are unchanged.
 
 Axis buttons switch the native camera to orthographic projection. In that mode the guide clips only at the viewport edges, independently of the near/far depth range fitted to the model. Otherwise the long sides of an edge-on guide can lie outside that range and disappear, leaving just two endpoints. With the embedded editor's initial front-facing frame, ±X views show a vertical line, ±Y views show a horizontal line, and ±Z views show the full rectangle at the intended aspect ratio. Perspective views retain near/far clipping and independent edge segments; no synthetic closing edges are added.
 
@@ -77,12 +78,17 @@ The optional handshake is:
   graphicsBackend: 'webgpu',
   capabilities: {
     gaussianEdit: true, streamedSogEdit: true, fullShPlyExport: true,
-    lodPreview: false, graphicsDiagnostics: false, webglFallback: false
+    lodPreview: false, lodPreviewFraming: false,
+    graphicsDiagnostics: false, webglFallback: false
   }
 }
 ```
 
-Preview mode reports the editing/export capabilities as false and `lodPreview` as true. The actual requested level and loaded point count accompany successful preview status. Query aliases `load`, `model`, `splat`, `splatUrl`, plus `lodManifestPath`, remain supported. Startup failures report an error to the parent, including an explicit WebGPU requirement when unsupported.
+Preview mode reports the editing/export capabilities as false and `lodPreview` and `lodPreviewFraming` as true. The actual requested level and loaded point count accompany successful preview status. Query aliases `load`, `model`, `splat`, `splatUrl`, plus `lodManifestPath`, remain supported. Startup failures report an error to the parent, including an explicit WebGPU requirement when unsupported.
+
+The archive-load message accepts an optional `framing` object with version 1, finite three-component `position` and `target`, vertical `fov: 45`, and optional positive `safeFrameAspect`. A malformed supplied view fails explicitly before decoding; omitting it preserves bounds-based initialization. The host checks `lodPreviewFraming` before sending a captured view. Only the archive-load message forwards this object; level changes cannot replace the user's comparison view. A new archive applies its own snapshot. Cancellation prevents an obsolete archive from installing its camera.
+
+The snapshot is in native Editor world coordinates. Native export removes the PLY import rotation, and native preview import applies it again, so the preview camera must not flip coordinates. `src/funes/adapters/preview-framing.ts` restores the pose once and shares `compositionFov` with editing. Before restoring it, the adapter reads the native lazy scene bound so that camera distance is normalized against the loaded model radius, avoiding an initial max-zoom clamp on large models. It preserves physical camera distance while adapting to viewport size, horizontal/vertical FOV and pixel ratio changes. It does not install framing inputs, origin locks, geometry edits or persistence behavior. Cleanup removes its render listener along with the preview resources. Model draft saving, Scene initial-camera overrides, publish behavior, locale and authorization remain the CMS's responsibility.
 
 ### Resource ownership
 
@@ -114,7 +120,9 @@ npm test
 npm run build
 ```
 
-The tests exercise actual message handlers, trust boundaries, full-SH export settings, malformed and nested ZIPs, manifest selection across leaves, cancellation and replacement lifecycle, native `concatSource` reads across mixed-band files, and the real upstream scale-control → pivot → transform → serialized PLY/SPLAT path. The upstream guard has negative tests for missing files, unreviewed edits and custom code outside `src/funes/`.
+The tests exercise actual message handlers, trust boundaries, full-SH export settings, malformed and nested ZIPs, manifest selection across leaves, cancellation and replacement lifecycle, native `concatSource` reads across mixed-band files, and the real upstream scale-control → pivot → transform → serialized PLY/SPLAT path. Preview-camera regressions cover archive-only bridge forwarding, malformed-view rejection, unchanged native pose and nonzero target, resize/FOV composition, physical-distance preservation, later comparison camera changes, cancellation and archive replacement. The upstream guard has negative tests for missing files, unreviewed edits and custom code outside `src/funes/`.
+
+For the preview-camera correction on 2026-10-19, the new regressions first failed five cases against the old runtime. A further lazy-bound regression reproduced a 150-unit camera distance being clamped to 14.7657 units before bound synchronization. After the fix, all 68 Editor tests, TypeScript and the production build (including upstream and browser-bundle checks) passed. CMS integration and real-browser acceptance are recorded in [Streamed SOG editing](../../docs/plugins/model3d-field/streamed-sog-editing.md).
 
 Verified on 2026-09-18 in the isolated browser build: the CMS handshake and ready state, a 64-point SH3 PLY, uniform scale of 2 with every exported position range doubled and all 45 SH coefficients unchanged, and all three real Atomium ZIP levels: LOD2 with 361,197 points, LOD1 with 1,053,491 points, and LOD0 with 3,009,974 points. The full scene rendered correctly and the preview exposed no editing tools. No persisted model or S3 object was changed.
 

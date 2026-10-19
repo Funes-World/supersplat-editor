@@ -24,7 +24,7 @@ const registerBridge = (events: Events, url: URL, adapter: BridgeAdapter) => {
     const preview = url.searchParams.get('lodPreview') === '1';
     const readOnly = preview || url.searchParams.get('mode') === 'viewer';
     const capabilities = { gaussianFraming: !readOnly && !!adapter.framing, gaussianEdit: !readOnly, fullShPlyExport: !readOnly, browserLodGeneration: !readOnly && !!adapter.generateLod,
-        streamedSogEdit: !readOnly, lodPreview: preview, graphicsDiagnostics: false, webglFallback: false };
+        streamedSogEdit: !readOnly, lodPreview: preview, lodPreviewFraming: preview, graphicsDiagnostics: false, webglFallback: false };
     const parentOrigin = trustedParentOrigin(url, document.referrer);
     let status: LoadState = { state: 'loading', preview };
     let subscriber: Window;
@@ -58,7 +58,7 @@ const registerBridge = (events: Events, url: URL, adapter: BridgeAdapter) => {
             Promise.resolve().then(() => {
                 if (data.type.endsWith(':load') && !(data.data instanceof ArrayBuffer)) throw new Error('The preview ZIP is invalid.');
                 return events.invoke('lod.preview.load', { level: data.level, manifestPath: data.manifestPath,
-                    ...(data.type.endsWith(':load') ? { data: data.data } : {}) });
+                    ...(data.type.endsWith(':load') ? { data: data.data, ...(data.framing !== undefined ? { framing: data.framing } : {}) } : {}) });
             }).then(result => {
                 if (requestId !== previewRequest || disposed) return;
                 if (!result) throw new Error('The LOD preview is not ready.');
